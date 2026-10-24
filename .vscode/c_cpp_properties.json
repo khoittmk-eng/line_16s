@@ -1,0 +1,27 @@
+{
+  "configurations": [
+    {
+      "name": "STM32F103 SPL",
+      "includePath": [
+        "${workspaceFolder}/app",
+        "${workspaceFolder}/bsp",
+        "${workspaceFolder}/config",
+        "${workspaceFolder}/vendor/Device/Include",
+        "${workspaceFolder}/vendor/CMSIS/Include",
+        "${workspaceFolder}/vendor/SPL/inc"
+      ],
+      "defines": [
+        "STM32F10X_MD",
+        "USE_STDPERIPH_DRIVER",
+        "HSE_VALUE=8000000"
+      ],
+      "compilerPath": "",
+      "cStandard": "c99",
+      "intelliSenseMode": "windows-clang-arm",
+      "compilerArgs": [
+        "-mcpu=cortex-m3"
+      ]
+    }
+  ],
+  "version": 4
+}

@@ -1,0 +1,7 @@
+build/
+*.uvguix.*
+*.uvoptx
+*.uvprojx.bak
+*.bak
+.vscode/.browse*
+DebugConfig/
