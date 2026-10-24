@@ -15,3 +15,12 @@ Write-Output $logText
 if ($process.ExitCode -gt 1 -or $logText -notmatch '0 Error\(s\)' -or !(Test-Path (Join-Path $buildPath 'linefollower.hex'))) {
     throw "Build failed (Keil exit $($process.ExitCode)). See $logPath"
 }
+
+$configText = Get-Content -LiteralPath (Join-Path $repoPath 'config/board.h') -Raw
+$firmwareTag = [regex]::Match($configText, '#define BOARD_FIRMWARE_TAG "([A-Za-z0-9_-]+)"').Groups[1].Value
+if ($firmwareTag) {
+    $versionedHex = Join-Path $buildPath ("linefollower-{0}.hex" -f $firmwareTag)
+    Copy-Item -LiteralPath (Join-Path $buildPath 'linefollower.hex') -Destination $versionedHex -Force
+    Write-Output ("Firmware {0}: {1}" -f $firmwareTag, $versionedHex)
+    Get-FileHash -LiteralPath $versionedHex -Algorithm SHA256 | Format-List
+}

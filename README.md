@@ -1,38 +1,44 @@
-# STM32 Line Follower ? SPL
+> **B14 hiện tại:** giảm tốc theo valid shape lệch bên, nhớ cue trước khi mất line, thêm DIAG sau Stop để khoanh vùng. Xem [B14](docs/diagnosis-b14.md). Quy tắc cũ bên dưới là lịch sử khi bị thay thế.
 
-Repo m?i cho STM32F103C8T6, vi?t C v?i Standard Peripheral Library (SPL).
-S?a b?ng VS Code; build d?ng Keil ARMCC 5 ?? c?i tr?n m?y. Kh?ng d?ng HAL/Arduino.
+# STM32 Line Follower — B09 / SPL
 
-## M? v? build
-1. M? folder n?y trong VS Code, ho?c m? `linefollower.code-workspace`.
-2. C?i extension C/C++ n?u ch?a c? ?? ??c code v? g?i ? header.
-3. Nh?n **Ctrl+Shift+B** ?? rebuild; k?t qu? trong `build/linefollower.hex` v? `.axf`.
-4. Ho?c ch?y `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1`.
-5. C?ng c? th? m? `linefollower.uvprojx` trong Keil, ch?n target LineFollower.
+STM32F103C8T6, line analog 8 mắt, TB6612, hai GA25 620 RPM không encoder,
+OLED I2C và ba nút EXTI/NVIC. Sửa bằng VS Code, build bằng Keil ARMCC 5.
 
-???ng d?n Keil m?c ??nh: `C:\Keil_v5\UV4\UV4.exe`.
-M?y kh?c: truy?n `-KeilPath` cho script. Build c?n ARMCC 5 v? STM32F1xx device pack;
-kh?ng c?n c?i GCC/CMake. Script ch? build, ch?a n?p firmware.
-N?p th? c?ng b?ng Keil/ST-Link sau khi x?c nh?n ch?n m?ch.
-IntelliSense ch? h? tr? ??c code; k?t qu? compiler Keil l? c?n c? build.
+## Trạng thái hiện tại
 
-## Tr?ng th?i ban ??u
-Ch? c? heartbeat LED PC13 (gi? ??nh active-low), SysTick 1 ms v? b? ??m tick 2 ms.
-Ch?a c? PID, menu, ADC ho?t ??ng hay l?nh ch?y ??ng c?.
-C?c ch?n DIR PA8..PA11 v? PWM PB6/PB7 ???c gi? m?c th?p sau kh?i t?o.
-Clock m?c ??nh d?ng th?ch anh HSE 8 MHz l?n 72 MHz; ph?i x?c nh?n tr?n bo th?c.
-B? nh? target: Flash 64 KB, RAM 20 KB. Ch?a ki?m ch?ng ph?n c?ng.
+B09 chạy Base cruise, bỏ tự boost/cooldown; giữ lệnh L/R đáng tin qua nét đứt tối đa 300 ms.
+Có line valid thì forward PD lái; không dùng ADVANCE/geometry timing hoặc ép quay theo map.
+Giữ calibration + white reference, ADC/DMA 2 ms, OLED menu, Motor Test và watchdog.
+Mặc định thử Base 45%, Max 75% (trần từng bánh), Kp 12, Ki 0, Kd 0.12; chỉnh trên OLED, chưa lưu Flash.
+Owner báo nét đứt/cua nhẹ khựng và chọn chạy Base cố định; B09 cần thử lại trên xe thực.
 
-## C?u tr?c
-- `app/`: ch??ng tr?nh ch?nh; s? th?m tr?ng th?i robot v? ?i?u khi?n.
-- `bsp/`: l?p truy c?p ph?n c?ng b?ng SPL.
-- `config/`: ch?n m?ch v? c?u h?nh SPL.
-- `startup/`: vector ng?t v? clock c?a ST/Arm.
-- `vendor/`: SPL, CMSIS v? header thi?t b? k?m th?ng tin ngu?n.
-- `scripts/`: build t? terminal/VS Code.
-- `docs/roadmap.md`: th? t? ph?t tri?n v? th? xe.
+Đọc [hướng dẫn B09](docs/cruise-gap-b09.md), [menu](docs/menu.md) và
+[nhật ký lỗi](docs/error-log.md) trước khi chạy hoặc sửa firmware.
+Không coi test giả lập là xác nhận xe chạy tốt trên phần cứng.
 
-Pin k? th?a t? code c? ch? l? c?u h?nh d? ki?n: c?m bi?n PA0..PA7;
-TB6612 DIR PA8..PA11, PWM PB6/PB7; OLED PB8/PB9; n?t PB0/PB1/PB10.
-Ch?n STBY ch?a x?c nh?n. Kh?ng chuy?n thu?t to?n c? v?o repo ? b??c d?ng n?n.
-Repo Git c?c b?; ch?a t?o remote hay ??ng l?n GitHub.
+## Build và nạp
+
+- VS Code: Ctrl+Shift+B gọi `scripts/build.ps1`; hoặc mở `linefollower.uvprojx` trong Keil.
+- CLI không cần mở uVision: `powershell -File scripts/build-headless.ps1`.
+- Cả hai dùng ARMCC 5, target Cortex-M3, Flash 64 KiB và RAM 20 KiB.
+- Nạp `build/linefollower-B09.hex` hoặc Download AXF từ Keil; kiểm tra OLED hiện B09.
+- Build task không tự flash. Source/artifact B08 giữ tại `backups/B08-before-B09-20261024`.
+
+Sau nạp: Calibration N3 start/end → cả 8 mắt lên trắng → N2 WHITE REF.
+N2 vào Run, N3 Start/Stop. Kiểm tra hướng sửa lái ở PWM thấp trước khi tăng tốc.
+Sau Stop nhấn ngắn N1 để xem LAST RUN (mode/V/T/reason/error/mask/PWM/B trước dừng).
+
+## Cấu trúc
+
+| Folder | Vai trò |
+| --- | --- |
+| `app/` | Estimator, controller, supervisor và menu |
+| `bsp/` | ADC/DMA, TB6612, EXTI buttons, OLED, timebase |
+| `config/` | Board pin/configuration |
+| `startup/`, `vendor/` | Startup, SPL và CMSIS; giữ license/provenance |
+| `scripts/` | Build và emulation tests |
+| `docs/` | Kiến trúc, phần cứng, hướng dẫn và error log |
+| `tests/` | Regression tests; không được link vào firmware |
+
+Xem [mục lục tài liệu](docs/README.md). STBY nối trực tiếp 3V3, không có STBY GPIO.

@@ -8,5 +8,6 @@
 #include "stm32f10x_i2c.h"
 #include "stm32f10x_usart.h"
 #include "misc.h"
+#include "stm32f10x_exti.h"
 #define assert_param(expr) ((void)0)
 #endif

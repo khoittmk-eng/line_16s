@@ -5,3 +5,5 @@ build/
 *.bak
 .vscode/.browse*
 DebugConfig/
+
+backups/
