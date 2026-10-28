@@ -77,10 +77,11 @@ void test_entry(void)
     for (i = 0; i < 8; ++i) raw[i] = 2000;
     CHECK(!Line_SetWhiteReference(&line, raw));
     Control_Defaults(&p);
-    CHECK(p.base_percent==45 && p.max_percent==75);
+    CHECK(p.base_percent==55 && p.max_percent==85);
+    CHECK(p.straight_percent==60);
     CHECK(p.kp==12.0f && p.ki==0.0f && p.kd==0.12f);
     /* Keep the original low-duty regression sequence independent of new trial defaults. */
-    p.base_percent=20; p.max_percent=30;
+    p.base_percent=20; p.straight_percent=20; p.max_percent=30;
     Control_Start(&state);
     Control_Step(&state, &p, 0, 1, 0x18, 2);
     CHECK(state.left == state.right && state.left <= 1);

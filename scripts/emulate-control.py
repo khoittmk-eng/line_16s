@@ -37,7 +37,10 @@ with open(sys.argv[1], 'rb') as source:
         print(f'Invalid emulation access: address={address:#x}, PC={pc:#x}, nearest={nearest[1]}+{pc-nearest[0]:#x}')
         return False
     cpu.hook_add(UC_HOOK_MEM_INVALID, invalid_memory)
-    cpu.emu_start(symbols['test_entry'] | 1, 0, timeout=60000000, count=200000000)
+    # B20 adds entry braking/slew diagnostics and adversarial transition tests.
+    # Keep the wall-clock limit; instruction budget is for the whole suite,
+    # not a claim about the 2 ms hardware control deadline.
+    cpu.emu_start(symbols['test_entry'] | 1, 0, timeout=60000000, count=300000000)
     read = lambda name: int.from_bytes(cpu.mem_read(symbols[name], 4), 'little')
     count, failure = read('test_count'), read('failure_line')
     if failure or not reached[0]:

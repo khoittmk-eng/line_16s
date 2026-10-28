@@ -41,7 +41,8 @@ static void ChangeParameter(int direction)
         if (*value < 0.0f) *value = 0.0f;
         if (*value > maximum) *value = maximum;
     } else {
-        uint16_t *speed = pidIndex == 3 ? &menu_parameters.base_percent : &menu_parameters.max_percent;
+        uint16_t *speed = pidIndex == 3 ? &menu_parameters.base_percent :
+                          pidIndex == 4 ? &menu_parameters.straight_percent : &menu_parameters.max_percent;
         int next = (int)*speed + direction * 5;
         if (next < 0) next = 0;
         if (next > 100) next = 100;
@@ -50,6 +51,10 @@ static void ChangeParameter(int direction)
             if (pidIndex == 3) menu_parameters.max_percent = menu_parameters.base_percent;
             else menu_parameters.base_percent = menu_parameters.max_percent;
         }
+        if(menu_parameters.straight_percent<menu_parameters.base_percent)
+            menu_parameters.straight_percent=menu_parameters.base_percent;
+        if(menu_parameters.straight_percent>menu_parameters.max_percent)
+            menu_parameters.straight_percent=menu_parameters.max_percent;
     }
 }
 void Menu_Process(const ButtonEvents *events, LineEstimator *line, uint8_t stale,
@@ -88,7 +93,7 @@ void Menu_Process(const ButtonEvents *events, LineEstimator *line, uint8_t stale
         }
         break;
     case MENU_RUN:
-        if((events->short_press&1U) && (run.mode==CONTROL_STOPPED || run.mode==CONTROL_FAULT)) show_last=(show_last+1U)%3U;
+        if((events->short_press&1U) && (run.mode==CONTROL_STOPPED || run.mode==CONTROL_FAULT)) show_last=(show_last+1U)%5U;
         if (events->long_press & 1U) {
             if (run.mode == CONTROL_STOPPED || run.mode == CONTROL_FAULT) Robot_ToggleSteering();
         }
@@ -104,10 +109,10 @@ void Menu_Process(const ButtonEvents *events, LineEstimator *line, uint8_t stale
         break;
     case MENU_PID:
         if (events->short_press & 1U) {
-            if (isEditingPID) ChangeParameter(1); else pidIndex = (pidIndex + 1U) % 5U;
+            if (isEditingPID) ChangeParameter(1); else pidIndex = (pidIndex + 1U) % 6U;
         }
         if (events->short_press & 4U) {
-            if (isEditingPID) ChangeParameter(-1); else pidIndex = pidIndex ? pidIndex - 1U : 4U;
+            if (isEditingPID) ChangeParameter(-1); else pidIndex = pidIndex ? pidIndex - 1U : 5U;
         }
         if (events->short_press & 2U) isEditingPID ^= 1U;
         break;
@@ -189,15 +194,16 @@ static void DrawPID(void)
     char text[24];
     OLED_DrawString(30, 0, "PID SETUP", 1);
     OLED_DrawString(104, 0, "RAM", 1);
-    /* All five parameters visible: Base/Max must not be hidden by scrolling. */
-    for (i = 0; i < 5U; ++i) {
-        uint8_t item = i, y = 12U + i * 8U;
+    /* Six 7-pixel rows fit above the footer without scrolling. */
+    for (i = 0; i < 6U; ++i) {
+        uint8_t item = i, y = 10U + i * 7U;
         if (item == pidIndex) OLED_DrawString(2, y, isEditingPID ? "*" : ">", 1);
         switch (item) {
         case 0: snprintf(text, sizeof(text), "Kp  : %.1f", menu_parameters.kp); break;
         case 1: snprintf(text, sizeof(text), "Ki  : %.2f", menu_parameters.ki); break;
         case 2: snprintf(text, sizeof(text), "Kd  : %.2f", menu_parameters.kd); break;
         case 3: snprintf(text, sizeof(text), "Base: %u%%", menu_parameters.base_percent); break;
+        case 4: snprintf(text, sizeof(text), "Straight: %u%%", menu_parameters.straight_percent); break;
         default: snprintf(text, sizeof(text), "Max : %u%%", menu_parameters.max_percent); break;
         }
         OLED_DrawString(15, y, text, 1);
@@ -228,12 +234,46 @@ void Menu_Draw(const LineEstimator *line, const LineFrame *frame, uint8_t stale)
     case MENU_MOTOR: DrawMotor(); break;
     case MENU_RUN: {
         RobotStatus run;
-        static const char *modes[] = {"READY", "TRACK", "GAP", "SEARCH", "FAULT", "TURN", "PROBE", "UNUSED", "RECENTER", "BRAKE"};
-        static const char *short_modes[] = {"RDY","TRK","GAP","SRC","FLT","TRN","PRB","---","REC","BRK"};
+        static const char *modes[] = {"READY", "TRACK", "GAP", "SEARCH", "FAULT", "TURN", "PROBE", "UNUSED", "RECENTER", "BRAKE", "ENTRY BRAKE"};
+        static const char *short_modes[] = {"RDY","TRK","GAP","SRC","FLT","TRN","PRB","---","REC","BRK","ENT"};
         RobotStartReason reason = Robot_GetStartReason();
         static const char *blocked[] = {"READY N3 START", "ADC ERROR: RESET", "CALIB IN PROGRESS",
             "CALIBRATE FIRST", "SET WHITE REF FIRST", "PLACE ON BLACK LINE", "BASE/MAX IS ZERO"};
         Robot_GetStatus(&run);
+        if(show_last==4U && (run.mode==CONTROL_STOPPED || run.mode==CONTROL_FAULT)) {
+            RobotDiagnostics d;
+            Robot_GetDiagnostics(&d);
+            OLED_DrawString(6,0,"STEER " BOARD_FIRMWARE_TAG,1);
+            if(d.valid) {
+                snprintf(text,sizeof(text),"ZERO count:%u",d.inner_zero_events);
+                OLED_DrawString(0,12,text,1);
+                snprintf(text,sizeof(text),"ZERO ms:%lu",(unsigned long)(d.inner_zero_ms>99999?99999:d.inner_zero_ms));
+                OLED_DrawString(0,24,text,1);
+                snprintf(text,sizeof(text),"ENTRY count:%u",d.entry_brake_events);
+                OLED_DrawString(0,36,text,1);
+                snprintf(text,sizeof(text),"ENTRY ms:%lu",(unsigned long)(d.mode_ms[CONTROL_ENTRY_BRAKE]>99999?99999:d.mode_ms[CONTROL_ENTRY_BRAKE]));
+                OLED_DrawString(0,48,text,1);
+            } else OLED_DrawString(0,24,"NO RUN DATA",1);
+            OLED_DrawString(0,57,"N1:LIVE N3:START",1);
+            break;
+        }
+        if(show_last==3U && (run.mode==CONTROL_STOPPED || run.mode==CONTROL_FAULT)) {
+            RobotDiagnostics d;
+            Robot_GetDiagnostics(&d);
+            OLED_DrawString(6,0,"TIME ms " BOARD_FIRMWARE_TAG,1);
+            if(d.valid) {
+                snprintf(text,sizeof(text),"TRK%lu CV%lu",(unsigned long)(d.mode_ms[CONTROL_TRACK]>99999?99999:d.mode_ms[CONTROL_TRACK]),(unsigned long)(d.curve_ms>99999?99999:d.curve_ms));
+                OLED_DrawString(0,12,text,1);
+                snprintf(text,sizeof(text),"GAP%lu PRB%lu",(unsigned long)(d.mode_ms[CONTROL_GAP]>99999?99999:d.mode_ms[CONTROL_GAP]),(unsigned long)(d.mode_ms[CONTROL_PROBE]>99999?99999:d.mode_ms[CONTROL_PROBE]));
+                OLED_DrawString(0,24,text,1);
+                snprintf(text,sizeof(text),"BRK%lu TRN%lu",(unsigned long)(d.mode_ms[CONTROL_BRAKE]>99999?99999:d.mode_ms[CONTROL_BRAKE]),(unsigned long)(d.mode_ms[CONTROL_TURN]>99999?99999:d.mode_ms[CONTROL_TURN]));
+                OLED_DrawString(0,36,text,1);
+                snprintf(text,sizeof(text),"REC%lu ALL%lu",(unsigned long)(d.mode_ms[CONTROL_ALIGN]>99999?99999:d.mode_ms[CONTROL_ALIGN]),(unsigned long)(d.run_ms>99999?99999:d.run_ms));
+                OLED_DrawString(0,48,text,1);
+            } else OLED_DrawString(0,24,"NO RUN DATA",1);
+            OLED_DrawString(0,57,"N1:STEER N3:START",1);
+            break;
+        }
         if(show_last==2U && (run.mode==CONTROL_STOPPED || run.mode==CONTROL_FAULT)) {
             RobotDiagnostics d;
             Robot_GetDiagnostics(&d);
@@ -248,7 +288,7 @@ void Menu_Draw(const LineEstimator *line, const LineFrame *frame, uint8_t stale)
                 snprintf(text,sizeof(text),"dt%lu ex%lu us",(unsigned long)(d.max_interval_us>99999?99999:d.max_interval_us),(unsigned long)(d.max_execution_us>99999?99999:d.max_execution_us));
                 OLED_DrawString(0,48,text,1);
             } else OLED_DrawString(0,24,"NO RUN DATA",1);
-            snprintf(text,sizeof(text),"F:%u R:%u N1:LIVE",(unsigned)run.fault,(unsigned)run.line_stop_reason);
+            snprintf(text,sizeof(text),"F:%u R:%u N1:TIME",(unsigned)run.fault,(unsigned)run.line_stop_reason);
             OLED_DrawString(0,57,text,1);
             break;
         }

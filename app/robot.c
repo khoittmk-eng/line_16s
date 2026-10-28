@@ -18,6 +18,10 @@ static void ResetDiagnostics(void)
     diagnostics=empty;
 }
 static void CountEvent(uint16_t *count) { if(*count<65535U) ++*count; }
+static void AddFrameTime(uint32_t *count)
+{
+    if(*count<=0xFFFFFFFFUL-BOARD_CONTROL_PERIOD_MS) *count+=BOARD_CONTROL_PERIOD_MS;
+}
 static void CaptureLastRun(void)
 {
     last_run.mode=controller.mode; last_run.error=line.error; last_run.mask=line.mask;
@@ -134,6 +138,23 @@ void Robot_OnFrame(const LineFrame *frame)
         if(controller.mode==CONTROL_GAP && before_mode!=CONTROL_GAP) CountEvent(&diagnostics.gap_entries);
         if((controller.mode==CONTROL_TURN || controller.mode==CONTROL_BRAKE) &&
            before_mode!=CONTROL_TURN && before_mode!=CONTROL_BRAKE) CountEvent(&diagnostics.turn_entries);
+        if(controller.mode==CONTROL_ENTRY_BRAKE && before_mode!=CONTROL_ENTRY_BRAKE)
+            CountEvent(&diagnostics.entry_brake_events);
+        {
+            uint8_t inner_zero=controller.mode==CONTROL_TRACK &&
+                ((controller.left==0 && controller.right>0) || (controller.right==0 && controller.left>0));
+            if(inner_zero) {
+                AddFrameTime(&diagnostics.inner_zero_ms);
+                if(!diagnostics.previous_inner_zero) CountEvent(&diagnostics.inner_zero_events);
+            }
+            diagnostics.previous_inner_zero=inner_zero;
+        }
+        if(controller.mode!=CONTROL_STOPPED && controller.mode!=CONTROL_FAULT) {
+            AddFrameTime(&diagnostics.run_ms);
+            AddFrameTime(&diagnostics.mode_ms[controller.mode]);
+            if(controller.mode==CONTROL_TRACK && controller.speed_reason==SPEED_CURVE)
+                AddFrameTime(&diagnostics.curve_ms);
+        }
     }
     elapsed_us = (Time_Cycles() - start) / (SystemCoreClock / 1000000U);
     if (elapsed_us > max_execution_us) max_execution_us = elapsed_us;

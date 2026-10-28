@@ -71,6 +71,27 @@ void RunRobotTests(void)
 {
     RobotStatus status;
     unsigned i;
+    /* Per-wheel zero requests are separate from full entry braking. */
+    {
+        RobotDiagnostics d,frozen;
+        TestRobot_Prepare();
+        for(i=0;i<150;++i) { Robot_UIAlive(now_ms); TestRobot_EmitMask(0x80); }
+        Robot_GetDiagnostics(&d);
+        CHECK(d.inner_zero_events==1 && d.inner_zero_ms>0 && !d.entry_brake_events);
+        Robot_Stop(FAULT_NONE); Robot_GetDiagnostics(&frozen);
+        TestRobot_EmitMask(0x18); Robot_GetDiagnostics(&d);
+        CHECK(d.inner_zero_events==frozen.inner_zero_events && d.inner_zero_ms==frozen.inner_zero_ms);
+        CHECK(Robot_Start()); Robot_GetDiagnostics(&d);
+        CHECK(!d.inner_zero_events && !d.inner_zero_ms && !d.entry_brake_events);
+        for(i=0;i<600;++i) { Robot_UIAlive(now_ms); TestRobot_EmitMask(0x18); }
+        for(i=0;i<3;++i) { Robot_UIAlive(now_ms); TestRobot_EmitMask(0xF8); }
+        Robot_GetStatus(&status);
+        CHECK(status.mode==CONTROL_ENTRY_BRAKE && !motor_left && !motor_right);
+        now_ms+=11; Robot_Watchdog(now_ms); Robot_GetStatus(&status);
+        CHECK(status.mode==CONTROL_FAULT && status.fault==FAULT_ADC && !motor_left && !motor_right);
+        TestRobot_EmitMask(0x18); Robot_GetStatus(&status);
+        CHECK(status.mode==CONTROL_FAULT && !motor_left && !motor_right);
+    }
     /* Actual estimator masks -> shape memory -> early recovery, with frozen diagnostics. */
     {
         RobotDiagnostics d, frozen;
@@ -78,7 +99,8 @@ void RunRobotTests(void)
         for(i=0;i<600;++i) { Robot_UIAlive(now_ms); TestRobot_EmitMask(0x18); }
         for(i=0;i<3;++i) { Robot_UIAlive(now_ms); TestRobot_EmitMask(0xF8); }
         Robot_GetStatus(&status);
-        CHECK(status.mode==CONTROL_TRACK && status.speed_reason==SPEED_CORNER && status.target_percent==28);
+        CHECK(status.mode==CONTROL_ENTRY_BRAKE && status.speed_reason==SPEED_BRAKE && status.target_percent==0);
+        CHECK(!motor_left && !motor_right && status.brake_count==1);
         for(i=0;i<6;++i) { Robot_UIAlive(now_ms); TestRobot_EmitMask(0x18); }
         for(i=0;i<3;++i) { Robot_UIAlive(now_ms); TestRobot_EmitMask(0); }
         Robot_GetStatus(&status); Robot_GetDiagnostics(&d);
@@ -86,13 +108,20 @@ void RunRobotTests(void)
         CHECK(d.valid && d.corner_events==1 && d.gap_entries==0 && d.turn_entries==1);
         CHECK(d.loss_from==CONTROL_TRACK && d.loss_mask==0 && d.last_valid_mask==0x18 && d.loss_side==1);
         CHECK(d.min_interval_us==2000 && d.max_interval_us==2000);
+        CHECK(d.run_ms==1224 && d.mode_ms[CONTROL_TRACK]==1216 && d.mode_ms[CONTROL_PROBE]==4);
+        CHECK(d.entry_brake_events==1 && d.mode_ms[CONTROL_ENTRY_BRAKE]==2);
+        CHECK(d.mode_ms[CONTROL_BRAKE]+d.mode_ms[CONTROL_TURN]==2);
         for(i=0;i<650;++i) { Robot_UIAlive(now_ms); TestRobot_EmitMask(0); }
         Robot_GetStatus(&status); Robot_GetDiagnostics(&frozen);
         CHECK(status.fault==FAULT_LINE && status.line_stop_reason==LINE_STOP_TURN_TIMEOUT);
         TestRobot_EmitMask(0x80); Robot_GetDiagnostics(&d);
         CHECK(d.last_valid_mask==frozen.last_valid_mask && d.turn_entries==frozen.turn_entries && d.loss_side==frozen.loss_side);
+        CHECK(d.run_ms==frozen.run_ms && d.mode_ms[CONTROL_TURN]==frozen.mode_ms[CONTROL_TURN]);
+        CHECK(d.entry_brake_events==frozen.entry_brake_events && d.inner_zero_ms==frozen.inner_zero_ms);
         TestRobot_EmitMask(0x18); CHECK(Robot_Start()); Robot_GetDiagnostics(&d);
         CHECK(d.valid && !d.corner_events && !d.turn_entries && !d.max_interval_us);
+        CHECK(!d.run_ms && !d.curve_ms && !d.mode_ms[CONTROL_TRACK]);
+        CHECK(!d.entry_brake_events && !d.inner_zero_ms && !d.inner_zero_events);
         now_ms+=5; TestRobot_EmitMask(0x18);
         Robot_GetStatus(&status); Robot_GetDiagnostics(&d);
         CHECK(status.fault==FAULT_TIMING && d.max_interval_us==7000);
@@ -110,17 +139,17 @@ void RunRobotTests(void)
     }
     Robot_GetStatus(&status);
     CHECK(status.mode == CONTROL_STOPPED);
-    /* Estimator -> controller -> PWM: a central eye cruises at Base, no boost to Max. */
+    /* Estimator -> controller -> PWM: a central eye earns the bounded bonus, not Max. */
     TestRobot_Prepare();
     for(i=0;i<800;++i) { Robot_UIAlive(now_ms); TestRobot_EmitMask(0x10); }
     Robot_GetStatus(&status);
-    CHECK(status.mode==CONTROL_TRACK && status.speed_reason==SPEED_BASE);
-    CHECK(status.common_percent==45 && status.target_percent==45 && !status.brake_count);
+    CHECK(status.mode==CONTROL_TRACK && status.speed_reason==SPEED_BOOST);
+    CHECK(status.common_percent==60 && status.target_percent==60 && !status.brake_count);
     Robot_Stop(FAULT_NONE);
     {
         RobotTrace trace;
         Robot_GetLastRun(&trace);
-        CHECK(trace.valid && trace.speed_reason==SPEED_BASE && trace.target_percent==45 && trace.common_percent==45);
+        CHECK(trace.valid && trace.speed_reason==SPEED_BOOST && trace.target_percent==60 && trace.common_percent==60);
     }
     TestRobot_Prepare();
     TestRobot_Emit(2, 0);
@@ -158,7 +187,7 @@ void RunRobotTests(void)
     for(i=0;i<100;++i) { Robot_UIAlive(now_ms); TestRobot_LoseMask(0); }
     Robot_GetStatus(&status);
     CHECK(status.mode==CONTROL_TURN && motor_left<0 && motor_right>0);
-    CHECK(motor_left==-300 && motor_right==300);
+    CHECK(motor_left==-360 && motor_right==360);
     Robot_Stop(FAULT_NONE);
     /* A high-duty brake is active RUN: preserve trace and allow an explicit Stop. */
     {
@@ -183,13 +212,20 @@ void RunRobotTests(void)
     {
         int16_t left=motor_left,right=motor_right;
         for(i=0;i<120;++i) {
+            float average=(left+right)/20.0f, scale=1.0f;
+            if((i+1)*2>60 && average>55) {
+                float drop=((i+1)*2-60)*0.06f;
+                if(drop>average-55) drop=average-55;
+                scale=(average-drop)/average;
+            }
             Robot_UIAlive(now_ms); TestRobot_EmitMask(0);
-            CHECK(motor_left==left && motor_right==right && motor_left>0 && motor_right>0);
+            CHECK(motor_left==(int16_t)(left*scale) && motor_right==(int16_t)(right*scale));
+            CHECK(motor_left>0 && motor_right>0);
         }
         Robot_GetStatus(&status);
         CHECK(status.mode==CONTROL_GAP && status.fault==FAULT_NONE && !status.brake_count);
         Robot_UIAlive(now_ms); TestRobot_EmitMask(0x18); Robot_GetStatus(&status);
-        CHECK(status.mode==CONTROL_TRACK && motor_left>0 && motor_right>0 && status.target_percent==45);
+        CHECK(status.mode==CONTROL_TRACK && motor_left>0 && motor_right>0 && status.target_percent==55);
     }
     /* Watchdogs still stop a held command during a gap, and the fault stays latched. */
     Robot_UIAlive(now_ms); TestRobot_EmitMask(0);

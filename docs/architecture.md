@@ -1,3 +1,5 @@
+> **B20 hiện tại:** 55/60/85, PID12/0/0,12; làm mượt correction có điều kiện, ENTRY BRAKE8ms khi góc đã xác nhận sau thẳng nhanh, cap35 khi xác nhận lại tâm60ms. Thêm STEER sau TIME. Xem [B20](speed-b20.md). Chưa hardware-verified; policy cũ bên dưới là lịch sử khi mâu thuẫn.
+
 > **Cập nhật B09:** owner chọn Base cruise, bỏ boost/cooldown; thêm guide memory để giữ L/R qua GAP. Xem [cruise-gap-b09.md](cruise-gap-b09.md) và [runtime.md](runtime.md). Không dùng ADVANCE/geometry timing; nội dung phiên bản cũ bên dưới là lịch sử.
 
 # Kiến trúc phần mềm theo C4

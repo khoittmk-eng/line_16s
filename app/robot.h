@@ -25,7 +25,10 @@ typedef struct {
 void Robot_GetLastRun(RobotTrace *trace);
 typedef struct {
     uint32_t min_interval_us, max_interval_us, max_execution_us;
+    uint32_t mode_ms[CONTROL_ENTRY_BRAKE+1], curve_ms, run_ms, inner_zero_ms;
     uint16_t corner_events, gap_entries, turn_entries;
+    uint16_t inner_zero_events, entry_brake_events;
+    uint8_t previous_inner_zero;
     uint8_t valid, last_valid_mask, loss_mask, previous_valid;
     ControlMode loss_from;
     int8_t loss_side;

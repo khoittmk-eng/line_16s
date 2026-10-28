@@ -18,7 +18,7 @@ int snprintf(char *out, size_t size, const char *format, ...)
     if (size) out[i < size ? i : size - 1U] = 0;
     return (int)i;
 }
-static uint8_t visible_speeds, visible_last, visible_planner, visible_fault, visible_place, visible_diag;
+static uint8_t visible_speeds, visible_last, visible_planner, visible_fault, visible_place, visible_diag, visible_time, visible_steer;
 static int StartsWith(const char *s, const char *prefix)
 {
     while (*prefix) if (*s++ != *prefix++) return 0;
@@ -33,9 +33,12 @@ void OLED_DrawString(uint8_t x, uint8_t y, const char *s, uint8_t c)
     if(StartsWith(s,"PLACE ON BLACK LINE")) visible_place=1;
     if(StartsWith(s,"LAST RUN")) visible_last=1;
     if(StartsWith(s,"DIAG ")) visible_diag=1;
+    if(StartsWith(s,"TIME ms ")) visible_time=1;
+    if(StartsWith(s,"STEER ")) visible_steer=1;
     if(StartsWith(s,"V%u T%u") && y==50U) visible_planner=1;
-    if (StartsWith(s, "Base:") && y == 36U) visible_speeds |= 1U;
-    if (StartsWith(s, "Max :") && y == 44U) visible_speeds |= 2U;
+    if (StartsWith(s, "Base:") && y == 31U) visible_speeds |= 1U;
+    if (StartsWith(s, "Max :") && y == 45U) visible_speeds |= 2U;
+    if (StartsWith(s, "Straight:") && y == 38U) visible_speeds |= 4U;
 }
 void OLED_DrawRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t c) { (void)x; (void)y; (void)w; (void)h; (void)c; }
 static void Check(int ok, unsigned line)
@@ -87,6 +90,12 @@ void RunMenuTests(void)
         visible_diag=0; Menu_Draw(&line,&frame,0);
         CHECK(visible_diag && Mode()==CONTROL_STOPPED);
         Send(1,0,0);
+        visible_time=0; Menu_Draw(&line,&frame,0);
+        CHECK(visible_time && Mode()==CONTROL_STOPPED);
+        Send(1,0,0);
+        visible_steer=0; Menu_Draw(&line,&frame,0);
+        CHECK(visible_steer && Mode()==CONTROL_STOPPED);
+        Send(1,0,0);
         visible_planner=0; Menu_Draw(&line,&frame,0);
         CHECK(visible_planner && Mode()==CONTROL_STOPPED);
     }
@@ -122,19 +131,25 @@ void RunMenuTests(void)
     CHECK(currentMenu == MENU_PID);
     Send(1,0,0); Send(1,0,0); Send(1,0,0); /* Base row. */
     Send(2,0,0); Send(1,0,0); Send(2,0,0);
-    CHECK(menu_parameters.base_percent == 50);
+    CHECK(menu_parameters.base_percent == 60);
+    Send(1,0,0); Send(2,0,0); Send(1,0,0); Send(2,0,0);
+    CHECK(menu_parameters.straight_percent == 65);
+    CHECK(menu_parameters.base_percent==60 && menu_parameters.max_percent==85);
+    Send(2,0,0); Send(4,0,0); Send(4,0,0); Send(2,0,0);
+    CHECK(menu_parameters.straight_percent==60 && menu_parameters.base_percent==60);
     Send(1,0,0); Send(2,0,0); Send(4,0,0); Send(2,0,0);
-    CHECK(menu_parameters.max_percent == 70);
+    CHECK(menu_parameters.max_percent == 80);
     /* Lower Max beneath Base: UI must lower Base too, preserving the invariant. */
     Send(2,0,0);
     for(i=0;i<9;++i) Send(4,0,0);
     Send(2,0,0);
-    CHECK(menu_parameters.base_percent==25 && menu_parameters.max_percent==25);
+    CHECK(menu_parameters.base_percent==35 && menu_parameters.max_percent==35);
+    CHECK(menu_parameters.straight_percent==35);
     {
         LineFrame frame = {{0},0,0,0,0};
         Robot_GetLine(&line); visible_speeds = 0;
         Menu_Draw(&line,&frame,0);
-        CHECK(visible_speeds == 3U);
+        CHECK(visible_speeds == 7U);
     }
     Send(0,0,2); Send(4,0,0); Send(4,0,0); Send(2,0,0); Send(4,0,0);
     CHECK(currentMenu == MENU_RUN && Mode() == CONTROL_TRACK);
@@ -142,7 +157,7 @@ void RunMenuTests(void)
     {
         RobotStatus status;
         Robot_GetStatus(&status);
-        CHECK(status.left == 250 && status.right == 250); /* Edited Max 25%, not default 30%. */
+        CHECK(status.left == 350 && status.right == 350); /* Edited Base/Max 30%. */
     }
     Send(0,0,2);
     /* Keep six old main items; corner timing is entered through System N3. */

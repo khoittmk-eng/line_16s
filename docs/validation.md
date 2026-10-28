@@ -158,3 +158,27 @@ Keil 0 error/warning; Code23064, RO1252, RW340, ZI2572 bytes. 34.008 assertions 
 ## B14 — 24/10/2026
 
 34.135 assertions pass; Keil0 error/warning, Code24576/RO1280/RW344/ZI2616. Regression on B13 fail30034. Estimator masks→controller→output and DIAG persistence/menu/timingfault tested. Hardware timing/heading not verified. See [B14](diagnosis-b14.md) for HEX hash and scope.
+
+## B15 — 26/10/2026
+
+34.709 assertions pass; Keil0 error/0 warning (Code25316/RO1280/RW344/ZI2632). Bổ sung bonus/cua mềm/guard/GAP dài giảm đúng tỷ lệ/GAP ngắn không giật. Owner xác nhận B14 45/75 chạy map; B15 chưa thử phần cứng. Chi tiết và HEX hash tại [speed-b15.md](speed-b15.md).
+
+## B16 — Profile50/80
+
+34.715 assertions pass; Keil0 error/0 warning. Test defaults50/80, target thẳng55/cua mềm54/GAP50/shape28 và menu adjustment. Giữ baseline45/75 và watchdog/recovery. Chưa thử xe; xem [profile-b16.md](profile-b16.md).
+
+## B17
+
+34.734 assertions pass; Keil0 error/0 warning, Code25484/RO1280/RW344/ZI2632. Stable curve/outward risk và high-profile repeated turns tested. Owner báo hết map nhanh hơn khoảng1s nhưng cua mềm còn khựng;60/90 phanh nhiều hơn. Không có trace hoặc phép đo quãng phanh. Chi tiết speed-b17.md.
+
+## B18
+
+34.754 assertions pass; Keil0 error/0 warning, Code26348/RO1328/RW344/ZI2688. New curve bridge/expiry/white/outward/handoff, post-turn ramp, mode durations/freeze/reset và4-page menu. UI stub không là OLED render; emulation không là hardware dynamics. Chưa có phản hồi xe B18. Xem speed-b18.md.
+
+## B19
+
+34.763 assertions pass; Keil0 error/0 warning; Code26436/RO1328/RW344/ZI2696. Thêm Straight config/controller/menu clamps và6-row layout; giữ quantization/GAP/bridge/recovery/watchdog tests. Owner xác nhận B18 ổn55/85; B19 chưa hardware-verified. HEX hash và hướng dẫn tại speed-b19.md.
+
+## B20
+
+34.861 assertions pass; Keil0 error/0 warning; Code27472/RO1360/RW352/ZI2720. Entry-brake two-sided confirmation/pulse/cancel/rearm/remainder/deadline; slew release/edge bypass; rejoin cap; supervisor raw masks, frozen ZERO/ENTRY counters, watchdog during entry và five-page menu. So backup: motor/ADC/estimator unchanged. Test instruction budget300M/timeout60s, completion required; không là hardware timing validation. B20 chưa thử xe; chi tiết/hash tại speed-b20.md.

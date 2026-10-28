@@ -328,3 +328,51 @@ Owner đã báo polarity ngược trên xe ở bản trước (ERR-007). Calibra
 - Khoanh vùng: thêm DIAG lưu C/G/T, mask/mode/direction tại loss và callback timing; N1 khi dừng chuyển LIVE/LAST RUN/DIAG. Không dùng counters làm bằng chứng thời điểm sự kiện chính xác.
 - Validation:34.135 assertions pass; Keil0 error/warning; actual estimator/raw mask và frozen diagnostics/timingfault tested. Xem diagnosis-b14.md.
 - Status: source-fixed/emulation-tested; timing thực, sensor response, heading/quán tính và map còn cần đo. Cua rộng/nét đứt sau cua có thể bị giảm tốc/recovery sớm.
+
+## ERR-030 — Tăng Base toàn bộ khiến vào cua và GAP quá nhanh
+
+- Ngày/revision:26/10/2026, B14→B15.
+- Owner:45/75 chạy cả map;60/80–90 vọt line, trắng dừng; muốn nhanh cả thẳng/cua mềm.
+- Evidence source: B14 tăng Base làm tăng nền cả thẳng/cua; GAP giữ exact duty300ms, không phân biệt phần tốc dư. Chưa có trace thực để kết luận mọi lần dừng là GAP timeout hay phanh muộn.
+- Fix: bonus giới hạn10/cap55/headroom15; tăng dần theo tracking, rút theo error/outward rate; guard300ms sau cua gấp; GAP60ms exact rồi giảm phần dư vềBase theo tỷ lệ L/R. Giữ PID/góc/recovery/watchdog. Gap ngắn bắt lại giữa không giật vềBase.
+- Validation:34.709 assertions pass, Keil0 error/warning; xem speed-b15.md. Bổ sung test cua mềm, bonus đạt target, quantization, guard, GAP ngắn/dài và estimator integration.
+- Status: source-tested, chưa hardware-verified. Backup B14 được giữ để đối chiếu; chưa khẳng định hết văng thực tế.
+
+## Theo dõi thử tốc B16 — chưa ghi nhận lỗi mới
+
+Owner báo B15 cải thiện khoảng0,5s và yêu cầu profile50/80. B16 đổi defaults, giữ thuật toán/PID/trần bonus55; GAP dài hiện về50 nên cần kiểm tra thực. 34.715 assertions pass; Keil0 error/warning. Chưa có hardware validation cho B16. Backup/source/HEX và quy trình thử tại [profile-b16.md](profile-b16.md).
+
+## ERR-031 — Cua mềm bị giảm tốc và recovery/cua gấp tốn thời gian
+
+- Owner thử55/85: hơi vọt lúc vào90°, cua mềm cảm giác phanh nhiều, chuỗi góc ổn nhưng chậm.
+- Evidence source: blend cũ từ1,5 pitch giảm cả error ổn định; cap28/RECENTER26/pivot30 cố định. Chưa có trace xác định full brake ở cua mềm.
+- Fix B17: blend2→3, cap32, outward rate risk riêng; pivot36/ramp600, RECENTER30. Giữ gain, brake và deadlines. Backup B16 trước sửa.
+- Validation:34.734 assertions pass, Keil0 error/warning; xem speed-b17.md. Test đủ ramp đảo chiều từ lệnh forward, không giả định mọi TURN bắt đầu từzero.
+- Hardware feedback owner: hết map, giảm khoảng1s, phanh90° tốt hơn; cua mềm/chuỗi góc vẫn tốn thời gian.60/90 phanh nhiều và chậm hơn. Trạng thái: cải thiện được owner báo, tối ưu cua còn open; chưa xác định nhánh gây khựng thực.
+
+## ERR-032 — Fragmented frame ở cua mềm hạ ngay về PROBE15
+
+- Nguồn: owner báo B17 còn khựng ở cua mềm; chưa có trace thực xác định full brake hay hạ PWM.
+- Source/reproduction: stable valid error1,9/mask60 không có straight guide; invalid24 chuyển target15 ngay. Không kết luận đây là mọi lần khựng trên xe.
+- Fix B18: snapshot moderate curve, exact hold tối đa8ms fragmented/4ms white, tuổi10ms; edge/pending/post-turn/hint/outward bị loại. Không reset loss/ambiguous/deadline. Valid nhận lại PD ngay. Tăng post-turn central ramp160 dưới42; giữ55/85 và B17 gains/pivot/phanh.
+- Đo thêm: TIME lưu command duration các mode, CV subset TRACK; không đo phanh cơ học, không thay thế temporal trace.
+- Validation:34.754 assertions pass; Keil0 error/warning. Thử expiry, handoff, white6ms recovery, square/memory/watchdog, diagnostic freeze/reset/menu. Xem speed-b18.md.
+- Status: source-fixed/emulation-tested, chưa hardware-verified. Backup B17 giữ nguyên.
+
+## ERR-033 — Trần đường thẳng cố định55 gây nhầm với Max
+
+- Owner: B18 55/85 ổn cả map, tăng Base60 vọt nhưng không tiết kiệm thời gian; yêu cầu chỉnh tốc thẳng riêng.
+- Evidence source: FAST_CAP55/bonus10/headroom15 giới hạn tự tăng; Max chỉ trần bánh, Base60 vượt cap bonus vì nâng cả nền.
+- Fix B19: straight_percent mặc định60, OLED6 dòng; clamp Base<=Straight<=Max. Chỉ cấp phần tăng thêm trong corridor0,8 pitch đủ80ms và không guard. Bỏ cap/bonus/headroom cố định cũ; giữ B18 phanh/recovery/bridge/GAP policy. Cua ổn định ngoài corridor vềBase.
+- Validation:34.763 assertions pass, Keil0 error/warning. Test Straight62, clampMax61/belowBase, menu độc lập/clamp/layout, central quantization và recovery/watchdog regressions. Xem speed-b19.md.
+- Status: source-fixed/emulation-tested, chưa thử xe B19. Backup B18 đã lưu.
+
+## ERR-034 — Phanh vào góc muộn và correction có thể làm cua mềm khựng
+
+- Owner xác nhận PID12/0/0,12; B19 cải thiện ít, cua mềm còn cảm giác phanh; thẳng nhanh vào90° có thể vọt tới line khác. Chưa có trace xác định đầy đủ nguyên nhân.
+- Evidence source: full brake chỉ bắt đầu trong recovery sau invalid; valid shape chỉ giảm target. PD correction có thể kéo một bánh về0, driver dùng short brake tại0; chưa chứng minh đây là mọi lần khựng với gain mặc định. Valid reacquisition không phân biệt danh tính line.
+- B20: slew build-up correction trong vùng moderate, nhả correction ngay; ENTRY BRAKE8ms cho confirmed shape sau fast-center history, latch chống lặp và chuyển phần pulse còn lại sang recovery nếu invalid. Post-turn cap35 khi xác nhận center60ms; valid PD không bị khóa. Không tuyên bố nhận đúng mọi line cạnh nhau.
+- Instrumentation: STEER lưu ZERO command events/ms và ENTRY events/ms; không là đo bánh dừng cơ học. Bổ sung mode vào arrays/telemetry; năm trang N1.
+- Validation:34.861 assertions pass, Keil0 error/warning. Hai phía, dt1..4, pulse/cancel/rearm/no-double-brake/deadline, soft steering release/edge bypass, cap rejoin, raw-mask supervisor, diagnostics/watchdog/menu. Driver motor/ADC/estimator unchanged so với backup B19.
+- Harness mở rộng300M instructions/60s toàn suite; hoàn tất test_done. Không chứng minh execution time thực.
+- Status: implemented/emulation-tested, chưa hardware-verified. Backup và chi tiết tại speed-b20.md.

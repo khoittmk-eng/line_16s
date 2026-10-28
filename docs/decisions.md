@@ -192,3 +192,27 @@ Lưu hướng và guard200ms sau RECENTER; center tin cậy100ms clear sớm. Re
 ## ADR-024 — B14: cue từ valid shape và diagnostics sau Stop
 
 Centroid valid không đủ phân biệt hình dạng. Mẫu rộng chạm mép lệch bên xác nhận6ms giảm target nhưng giữ PD; pending200ms chặn GAP khi mất dấu sớm. Không pivot trước khi invalid. Thêm DIAG sau Stop để phân biệt nhận dạng/GAP/recovery/timing thay vì suy đoán từ LINE LOST. Chi tiết và tradeoff tại [B14](diagnosis-b14.md).
+
+## ADR-025 — B15: bonus trên nền Base thay tăng Base toàn map
+
+Owner cho phép adaptive speed trở lại. Giữ Base45/Max75/PID đã chạy ổn; thêm bonus tối đa10 có điều kiện, cap55 và steering headroom15. Cua mềm có thể nhận bonus; shape gấp/recovery chặn bonus300ms. GAP giữ exact60ms rồi giảm riêng phần dư vềBase, giữ tỷ lệ bánh; short reacquisition giữ duty. Hệ quả: thay policy fixed cruise/exact300ms của B09; tham số heuristic cần thử xe. Không sửa watchdog, brake hardware hoặc recovery deadline. Xem [B15](speed-b15.md).
+
+## ADR-026 — Tăng defaults theo từng nấc, B16 chỉ đổi50/80
+
+Theo yêu cầu owner, đổi defaults sang50/80, giữ gain và controller B15 để đối chiếu riêng ảnh hưởng profile. Không triển khai gain scheduling hay tăng trần bonus trong lần này. Trần bonus vẫn55; mức GAP nền nâng50. Kết quả trên xe quyết định nấc tiếp theo. Xem [profile-b16.md](profile-b16.md).
+
+## ADR-027 — B17: phân biệt stable curve và outward drift, tăng tốc recovery
+
+Blend từ2→3 pitch, tight/shape32, outward rate4→16 tạo giảm target theo risk; valid PD giữ authority. Pivot36/ramp600 và RECENTER30. Giữ brake12ms/recovery1200ms và memory guards. Defaults55/85; không gain scheduling trong revision này. Owner báo cải thiện1s,60/90 kém hơn; ưu tiên giảm thời gian recovery/khựng trước tăng Base. Xem speed-b17.md.
+
+## ADR-028 — B18: bounded curve snapshot và command-state durations
+
+Owner cho phép tiếp tục tối ưu. Fragmented moderate curve được giữ L/R8ms, white4ms với snapshot age10ms và guards loại corner/edge/rate. Không mở rộng straight GAP hay dùng centroid invalid. Thoát recovery giữa line dùng ramp160 dưới42, sau đó80. TIME cộng frame2ms, CV subset TRACK, không là wall-clock hay brake distance. Giữ55/85/PID/phanh/pivot36. Chi tiết speed-b18.md.
+
+## ADR-029 — Tách Straight khỏi Base và wheel ceiling Max
+
+B19 thêm Straight RAM-only trên OLED; defaults55/60/85, clamp Base<=Straight<=Max. Bỏ hard-coded cap55/bonus10/headroom15; dùng Straight-Base và mixer giới hạn Max. Straight cần corridor0,8 pitch/80ms, guards góc giữ B18. Cua mềm ngoài corridor vềBase, không kéo thêm tốc thẳng theo cua. Heuristic không là geometry lookahead; test xe quyết định mức tiếp. Xem speed-b19.md.
+
+## ADR-030 — B20: entry brake có điều kiện và giới hạn tăng correction
+
+Owner cho phép phanh chủ động khi vào góc. B20 thêm ENTRY_BRAKE8ms trước loss với confirmed shape6ms, fast center memory150ms và mean duty>=50. Đây là ngoại lệ có kiểm soát cho policy cũ không full brake khi valid. Valid thường hủy ngay; invalid dùng phần pulse còn lại và giữ recovery deadline; latch chỉ mở sau trusted center. Soft steering giới hạn build-up800 trong vùng moderate, giải phóng correction ngay, không ép bánh trong luôn tiến. Post-turn cap35 tới60ms center (TTL200ms), không xác định được danh tính line. Giữ55/60/85/gain12/0/0,12 để đối chiếu. Diagnostics phân biệt ZERO/ENTRY; xem speed-b20.md.

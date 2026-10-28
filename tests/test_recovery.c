@@ -27,11 +27,11 @@ void RunRecoveryTests(void)
     unsigned i,j;
     int sign;
     /* A broad valid bend can return briefly to center without any TURN episode. */
-    Control_Defaults(&p); p.base_percent=35; p.max_percent=75;
+    Control_Defaults(&p); p.base_percent=35; p.straight_percent=45; p.max_percent=75;
     for(sign=-1;sign<=1;sign+=2) {
         Warm(&s,&p);
         for(i=0;i<4;++i) Control_Step(&s,&p,sign*1500,1,sign>0?0xF8:0x1F,2);
-        CHECK(s.mode==CONTROL_TRACK && s.left>=0 && s.right>=0 && s.target<=28);
+        CHECK(s.mode==CONTROL_TRACK && s.left>=0 && s.right>=0 && s.target<=32);
         for(i=0;i<6;++i) Control_Step(&s,&p,0,1,0x18,2);
         for(i=0;i<3;++i) Control_Step(&s,&p,0,0,0,2);
         CHECK((s.mode==CONTROL_TURN || s.mode==CONTROL_BRAKE) && s.turn_dir==sign && !s.may_cross_gap);
@@ -45,7 +45,7 @@ void RunRecoveryTests(void)
     /* One broad sample and alternating side noise do not confirm a bend. */
     Warm(&s,&p);
     Control_Step(&s,&p,1500,1,0xF8,2);
-    CHECK(!s.corner_pending_ms && s.target==35);
+    CHECK(!s.corner_pending_ms && s.target<=35 && s.mode==CONTROL_TRACK && s.left>=0 && s.right>=0);
     for(i=0;i<20;++i) Control_Step(&s,&p,(i&1)?1500:-1500,1,(i&1)?0xF8:0x1F,2);
     CHECK(!s.corner_pending_ms && s.mode==CONTROL_TRACK);
     /* Stable center clears pending intent; real straight dashes still hold commands. */
@@ -65,7 +65,7 @@ void RunRecoveryTests(void)
     CHECK(!s.corner_pending_ms && s.mode==CONTROL_TRACK);
     /* Brief center after a turn is not enough evidence for a 300 ms straight gap. */
     Control_Defaults(&p); p.kp=12; p.ki=0; p.kd=0.12f;
-    p.base_percent=35; p.max_percent=75;
+    p.base_percent=35; p.straight_percent=45; p.max_percent=75;
     for(sign=-1;sign<=1;sign+=2) {
         unsigned deadline;
         Warm(&s,&p); Lose(&s,&p,sign);
@@ -114,7 +114,7 @@ void RunRecoveryTests(void)
     for(i=0;i<CONTROL_POST_TURN_MS/2U;++i) Control_Step(&s,&p,1000,1,0x30,2);
     CHECK(s.mode==CONTROL_TRACK && !s.post_turn_ms);
     /* A brief centered glimpse must not erase the last observed side for search. */
-    Control_Defaults(&p); p.base_percent=35; p.max_percent=75;
+    Control_Defaults(&p); p.base_percent=35; p.straight_percent=45; p.max_percent=75;
     for(sign=-1;sign<=1;sign+=2) {
         Warm(&s,&p);
         Control_Step(&s,&p,sign*2500,1,sign>0?0x40:0x02,2);
@@ -160,7 +160,7 @@ void RunRecoveryTests(void)
     Control_Step(&s,&p,0,1,0x18,2);
     CHECK(s.mode==CONTROL_FAULT && !s.left && !s.right && !s.last_side_ms);
     /* Next corner can arrive before RECENTER completes: accept fresh direction. */
-    Control_Defaults(&p); p.base_percent=35; p.max_percent=75;
+    Control_Defaults(&p); p.base_percent=35; p.straight_percent=45; p.max_percent=75;
     for(sign=-1;sign<=1;sign+=2) {
         Warm(&s,&p); Lose(&s,&p,sign);
         Control_Step(&s,&p,0,1,0x18,2);
@@ -204,7 +204,7 @@ void RunRecoveryTests(void)
         }
     }
     /* A central eye at a dash edge can kick D; keep the last moving commands through white. */
-    Control_Defaults(&p); Warm(&s,&p);
+    Control_Defaults(&p); p.base_percent=45; p.straight_percent=45; p.max_percent=60; Warm(&s,&p);
     Control_Step(&s,&p,500,1,0x10,2);
     {
         int16_t before_left=s.left, before_right=s.right;
@@ -213,7 +213,7 @@ void RunRecoveryTests(void)
     }
     /* Asymmetric split corner after centered tracking has no valid extreme centroid. */
     for(sign=-1;sign<=1;sign+=2) {
-        Control_Defaults(&p); p.base_percent=20; p.max_percent=30; Warm(&s,&p);
+        Control_Defaults(&p); p.base_percent=20; p.straight_percent=20; p.max_percent=30; Warm(&s,&p);
         for(i=0;i<3;++i) Control_Step(&s,&p,0,0,sign>0?0xE8:0x17,2);
         CHECK(s.mode==CONTROL_TURN && s.turn_dir==sign && !s.may_cross_gap);
         for(i=0;i<40;++i) Control_Step(&s,&p,0,0,0,2);
@@ -225,8 +225,8 @@ void RunRecoveryTests(void)
         CHECK(s.mode==CONTROL_PROBE); /* Alternating noise cannot confirm a side. */
     }
     Control_Defaults(&p);
-    CHECK(p.base_percent==45 && p.max_percent==75 && p.advance_ms==0 && p.align_ms==12);
-    p.base_percent=20; p.max_percent=30;
+    CHECK(p.base_percent==55 && p.max_percent==85 && p.advance_ms==0 && p.align_ms==12);
+    p.base_percent=20; p.straight_percent=20; p.max_percent=30;
     /* Golden invariant: visible single line never enters a geometry/timed pivot, even at an edge. */
     p.advance_ms=800; /* Wrong legacy geometry must have no effect. */
     for(sign=-1;sign<=1;sign+=2) {
@@ -242,7 +242,7 @@ void RunRecoveryTests(void)
         }
     }
     Control_Defaults(&p);
-    p.base_percent=20; p.max_percent=30;
+    p.base_percent=20; p.straight_percent=20; p.max_percent=30;
     for(sign=-1;sign<=1;sign+=2) {
         Warm(&s,&p); Lose(&s,&p,sign);
         for(i=0;i<100;++i) Control_Step(&s,&p,sign*3000,0,0,2);
@@ -301,7 +301,7 @@ void RunRecoveryTests(void)
         CHECK(s.mode==CONTROL_TRACK);
     }
     /* A short central split-mask transition keeps the same remembered rolling commands. */
-    Control_Defaults(&p); Warm(&s,&p);
+    Control_Defaults(&p); p.base_percent=45; p.straight_percent=45; p.max_percent=60; Warm(&s,&p);
     Control_Step(&s,&p,500,1,0x10,2);
     {
         int16_t left=s.left,right=s.right;
