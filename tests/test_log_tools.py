@@ -29,7 +29,7 @@ class LogToolsTests(unittest.TestCase):
 
     def test_c_output_with_hercules_surrounding_text(self):
         log = parser.parse_log('Serial port open\n' + self.text + '\nPort closed\n')
-        self.assertEqual(log['firmware'], 'B29')
+        self.assertEqual(log['firmware'], 'B34')
         self.assertEqual(log['profile']['kd_x1000'], 120)
         self.assertEqual(log['rows'][-1]['mode'], 0)
         self.assertTrue(log['rows'][-1]['flags'] & 4)

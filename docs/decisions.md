@@ -275,3 +275,39 @@ Owner yêu cầu bỏ phanh rồi mới rẽ. B24 supersedes policy giữ recove
 - Evidence: B28 fail140035. So sánhB28/rise-only/B29 cùng synthetic trace: entry19,44/19,8/19,8; steady23,4 cảba; extra sau6msreturn0,264/0,264/0,176. ChọnB29 theo hành vi lệnh, không dự báo thành tích.
 - Tradeoff: rise nhanh/return fade có thể làm phản ứng với cue giả hoặc nhả thiếu lực, cần thửxe. Gain metadata vẫn làgain nền, Flash/CSV khôngđổi. Không tăngBase/Max hoặcđổi driver/SWD trong lượt này.
 - Validation:104149ARM+26Python+candidatecomparison, Keil0errors/warnings. Chi tiết [B29](corner-return-b29.md), ERR-051; backupB28.
+
+## ADR-040 — Tăng chênh lệch PWM riêng ở góc đã xác nhận (B30)
+
+- Owner yêu cầu lực cua mạnh hơn và chấp nhận dễ văng. Giữ Base45/Max85, PID nền12/0/0,12.
+- Extra P tối đa tăng0,6→1,0; rise/release0,05→0,08/ms. Giữ eligibility và trend latch/rearm B29, forward-only mixer, clipping/antiwindup; không thêm floor hoặc ép pivot trên valid line.
+- Pure P ổn định ởe1,5: hai bánh68,4/21,6→72/18%; ởe2:83,4/6,6→85/0%. PWM không phải tốc độ thực; đã saturation thì gain không tăng thêm output.
+- Giữ recovery/dash/driver/watchdogs và Flash/CSV schema. Gain mạnh có thể làm văng/cắt nhánh; cần thử trên xe, chưa có lap time.
+- Validation:104155ARM+26Python tests, Keil0Error/0Warning, layout pass. BackupB29 source/HEX; chi tiết [B30](stronger-corner-b30.md).
+
+## ADR-041 — Arc dùng full differential, giữ nguyên thời hạn (B31)
+
+- Owner yêu cầu chọn hướng tối ưu góc và nạp thử. Chọn tăng arc steering0,8→1,0 vì source có đoạn nhả chênh lệch85→68 tại handoff valid85/0→loss. Không có dữ liệu đủ để xếp hạng hiệu quả lap time.
+- Arc không yêu cầu bánh trong lùi, vẫn28ms và entrymean>=35; Max cap common vềMax/2. Ở45/85 output85/0, mean42,5: tăng lực lái yêu cầu nhưng không tăng duty tiến trung bình.
+- Giữ B30 và mọi bounds/interlocks/driver/Flash schema. Nguy cơ quét lố/văng hoặc bánh trong brake mạnh hơn cần thử xe; không kéo dài blind arc.
+- BaselineB30 fail120036;104160ARM+26Python pass;Keil0Error/0Warning. Chưa nhận probe USB, chưa nạp hoặc thử xe; chi tiết [B31](sharp-arc-b31.md).
+
+## ADR-042 — Zero drive coasts, explicit Stop vẫn brake (B32)
+
+- Owner chấp nhận bỏ phanh chủ động ở bánh trong khi cua, giữ Stop/fault/watchdog. Đổi zero command riêng từng channel thành LL/PWM High, explicit StopBrake riêng thành HH/PWM Low. Giữ STBY3V3 và guard/stagger đảo chiều.
+- Dùng command lease flag thay vì previous!=0, để lệnh0/0 coast vẫn bị watchdog brake khi mất cập nhật hơn20ms. Explicit StopCoast hủy lease theo nghĩa coast độc lập.
+- Nonzero-duty PWM giữ nguyên; không tuyên bố loại bỏ mọi khoảng short brake hoặc đo hiệu quả cơ học. Motor Test một bánh có bánh còn lại coast, Stop/timeout vẫn brake; controller B31 không đổi.
+- BaselineB31 fail50048;104172ARM+26Python pass;Keil0Error/0Warning. BackupB31 có BSP/source/HEX, chưa nạp/thử xe. Chi tiết [B32](coast-zero-b32.md).
+
+## ADR-043 — Trở lại đặc tính cua B30 theo phản hồi B32 văng (B33)
+
+- Owner báo B32 chậm hơn B30 do cua rộng/văng rồi mới reacquire. Hoàn nguyên zero brake và arc0,8, giữ các bảo vệ Stop/watchdog B32. Không thêm tuning mới khi chưa có trace.
+- Source comparison xác nhận controller/header/tuning khớp B30 bỏ comment/whitespace, drive semantics khớp trước coast ngoại trừ lease flag được giữ. B33 không nhằm tăng chênh lệch xuyên loss bằng mọi giá.
+- Hoàn nguyên hai thay đổi đồng thời không xác định tác động riêng từng thay đổi; physical root cause và thành tích B33 chưa xác nhận.
+- BaselineB32 fail120036;104172ARM+26Python pass;Keil0Error/0Warning. BackupB32 source/BSP/HEX; [B33](restore-corner-b33.md).
+
+## ADR-044 — Signed PD có điều kiện trên valid sharp cue (B34)
+
+- Owner muốn inner reverse/outer forward khi rẽ đột ngột. Giữ sensor-based PD, mở mixer output âm thay vì chạy timed pivot trên valid line.
+- Gate TRACK/cue cùng phía6ms/error>=2pitch/nonimproving/không releasing/correction cùng hướng. Allowance=min(Max,20)*corner_gain, giới hạn steering và antiwindup theo allowance. Bỏ quyền lùi khi gate clear; ordinary/ALIGN vẫn forward-only.
+- Giữ B33 driver/zero brake và recovery bounds. Loss từ bánh đang âm không thỏa forward arc; không renew deadline. Target/gain nền và log48/108 không đổi, modeTRACK có thể chứa output âm.
+- Có nguy cơ đảo chiều gây khựng/trượt/cắt nhánh; cue không là classifier90°. B33 fail130035;104778ARM+26Python pass;Keil0Error/0Warning. BackupB33; chưa hardware/lap validated. [B34](signed-corner-b34.md).

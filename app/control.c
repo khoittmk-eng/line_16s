@@ -52,7 +52,9 @@ static void TurnOutput(ControlState *s, float maximum)
 {
     float duty=Limit(s->search_near_line?CONTROL_PIVOT_PERCENT:CONTROL_SEARCH_FAST_PERCENT,0,maximum);
     /* No brake/reversal stage on initial confirmed loss: reuse the actual
-     * entering common PWM and create yaw with two forward wheel commands.
+     * entering common PWM within Max and create yaw without wheel reversal.
+     * B33 restores B30's 0.8 arc: both wheels keep a forward request,
+     * with entry common PWM preserved whenever Max provides headroom.
      * Count this short arc inside the existing continuous recovery deadline.
      * Valid line cancels the maneuver immediately; there is no minimum turn. */
     if(s->recovery_arc_speed>0 && s->recovery_ms<CONTROL_RECOVERY_ARC_MS) {
@@ -218,6 +220,7 @@ static void HoldGuide(ControlState *s, float base, float maximum)
 static void Follow(ControlState *s, const ControlParameters *p, float e, float target, float maximum, float dt, uint8_t smooth)
 {
     float steering_limit, candidate, correction, common, proportional_gain;
+    float reverse_limit=0;
     float accel=CONTROL_ACCEL_PERCENT_PER_SECOND;
     /* Startup/rejoin ramp only; ordinary tracking has one fixed Base target.
      * The mixer can lower common duty to preserve steering within Max. */
@@ -241,14 +244,29 @@ static void Follow(ControlState *s, const ControlParameters *p, float e, float t
     if(s->corner_gain>0) proportional_gain*=1.0f+s->corner_gain;
     candidate=p->ki>0?Limit(s->integral+e*dt,-10.0f/p->ki,10.0f/p->ki):0;
     correction=proportional_gain*e+p->ki*candidate+p->kd*s->derivative;
+    /* B34: owner permits the inner wheel to reverse on sharp visible corners.
+     * This extends live PD headroom, without a fixed spin pulse or steering
+     * floor. Returning/cleared cues and ALIGN keep the forward-only mixer.
+     * Bound both wheels even if Base or Max changes during the maneuver. */
+    if(s->mode==CONTROL_TRACK && s->shape_ms>=CONTROL_SHAPE_CONFIRM_MS &&
+       e*s->shape_dir>=CONTROL_CORNER_REVERSE_ERROR_PITCH &&
+       e*s->planner_rate>=0 && !s->corner_releasing && correction*e>0) {
+        reverse_limit=Limit(s->corner_gain,0,1)*Limit(CONTROL_CORNER_REVERSE_MAX_PERCENT,0,maximum);
+        steering_limit=Limit(s->speed+reverse_limit,0,(maximum+reverse_limit)*0.5f);
+    }
     if(Abs(correction)<=steering_limit || correction*e<0) s->integral=candidate;
     correction=Limit(proportional_gain*e+p->ki*s->integral+p->kd*s->derivative,-steering_limit,steering_limit);
+    if(reverse_limit>0 && correction*e<=0) {
+        reverse_limit=0;
+        steering_limit=Limit(s->speed,0,maximum*0.5f);
+        correction=Limit(correction,-steering_limit,steering_limit);
+    }
     /* B26: visible line gets its P correction in this frame. D already has a
      * 15 ms low-pass; a second slew on the whole PD delayed ordinary bends. */
     s->last_correction=correction;
     common=Limit(s->speed,0,maximum-Abs(correction));
-    s->left=(int16_t)(Limit(common+correction,0,maximum)*10.0f);
-    s->right=(int16_t)(Limit(common-correction,0,maximum)*10.0f);
+    s->left=(int16_t)(Limit(common+correction,-reverse_limit,maximum)*10.0f);
+    s->right=(int16_t)(Limit(common-correction,-reverse_limit,maximum)*10.0f);
 }
 /* A split pattern may still supply direction, never a trustworthy centroid.
  * Require three outer-side eyes and at most one opposite-side eye. */

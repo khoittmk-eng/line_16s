@@ -526,3 +526,41 @@ Validation:84.890 assertions +8 Python tests pass; Keil0 error/warning. Hash và
 - B29: confirm error giảm rõ liên tiếp6ms trong cùng visible cue, nhả extra P sớm có fade0,05/ms; giữ releasing qua plateau, cần6ms đi ra ngoài rõ để cho phép hỗ trợ lại. Noise/cue/mode/Stop/invalid được test; không sửa corner memory hay deadlines.
 - Rise rate tăng0,04→0,05/ms, trầnextra0,6 vàBase45/Max85/PID nền không đổi. So ba candidate ARM cho thấy chỉ tăngrise không giảm phần hỗ trợ còn giữ khi thoát; B29 kết hợp choextra0,176 tại cùng input, cùngsteady correction23,4. Không phải đo quỹ đạo/lap time.
 - Validation:104149ARM+26Python tests, comparison vàKeil0Error/0Warning pass. Chưahardware-verified; có thể nhả quá sớm khi tín hiệu giảmerror là nhiễu hoặc nhánh khác. Xem [B29](corner-return-b29.md). BackupB28.
+
+## B30 — Thử tăng chênh lệch hai bánh, chưa ghi nhận defect mới
+
+Owner chủ động yêu cầu tăng lực cua và chấp nhận xe dễ văng. Extra P trần0,6→1,0, rise/release0,05→0,08/ms; giữ cue/trend B29, Base45/Max85 và PID nền. Không thay mixer forward-only, memory/deadlines, driver hay watchdog. Test profile mới fail140030 trên B29 là kỳ vọng tuning mới, không phải bằng chứng B29 có lỗi hardware. B30 pass104155ARM+26Python tests, Keil0Error/0Warning và layout pass; backupB29 source/HEX. Chưa thử xe hoặc đo thành tích; chi tiết [B30](stronger-corner-b30.md).
+
+## ERR-052 — Pha rẽ tiến nhả chênh lệch đã đạt khi còn valid
+
+- Symptom source: valid85/0→confirmed loss chuyển76,5/8,5 trong arc, chênh lệch giảm85→68. Chưa có hardware trace xác nhận mức ảnh hưởng tới thời gian cua.
+- Evidence/root cause: arc B30 luôn correction0,8mean dù TRACK đã đạt correction=mean. Regression hai phía với PID nền/pureP fail120036 trên B30.
+- FixB31: hệ số arc1,0, giữ85/0 ở handoff này; khi entrymean45/max85 thì common cap42,5. Không tăng thời gian tiến mù hoặc thay valid authority, driver/deadlines/watchdogs.
+- Validation:104160ARM+26Python tests pass, Keil0Error/0Warning và layout pass. Handoff/expiry/rejoin/Max/dt/retry/square-chain được kiểm tra.
+- Status: source-tested, chưa hardware-verified; chọn để thử tăng lực xoay, không chứng minh nhanh hơn thực. BackupB30; hiện chưa nhận USB probe nên chưa nạp. Xem [B31](sharp-arc-b31.md).
+
+## B32 — Đổi zero command sang coast, bảo toàn phanh an toàn
+
+Owner chấp nhận coast lúc bám line/cua và giữ Stop/fault/watchdog brake. B31 test mới fail50048 vì driver zero vẫn short brake; đây là thay đổi policy, không phải kết luận defect hardware. B32 dùng LL/PWM High riêng channel ở zero, tách StopBrake HH/PWM Low khỏi Motor_SetDuty. Đã phòng tránh lỗi khi chỉ đổi zero: watchdog cũ dựa previous!=0 sẽ không brake nếu lệnh cuối0/0, nên thêm command_leased cho mọi drive command và test ranh giới20/21ms. Giữ reversal guard/stagger, controller và interlocks.104172ARM+26Python,Keil0Error/0Warning và layout pass. Chưa đo dòng/waveform/quãng dừng/thành tích, chưa nạp board; xem [B32](coast-zero-b32.md).
+
+## Phản hồi hardware B32 — Owner báo chạy lâu hơn B30
+
+- Ngày:29/10/2026. Owner báo bản hiện tại lâu hơn B30; chưa cung cấp thời gian cụ thể, điều kiện pin/Base/Max, số lượt hoặc log.
+- Những thay đổi source cần phân biệt: B31 arc0,8→1,0, common45 bị cap42,5 khi Max85; B32 zero command chuyển brake→coast, kể cả guard đảo chiều. TRACK PID/gain và deadline không đổi giữa các bản.
+- Giả thuyết cần kiểm chứng: coast làm bánh trong giữ đà nên góc mở rộng hoặc quay tìm lâu hơn; arc mạnh có thể làm quá lái hoặc đổi nhịp rejoin. Không có measurement xác nhận từng nguyên nhân. PWM request không đo tốc độ bánh.
+- Trạng thái: hardware regression theo owner, root cause còn mở. Dùng B30 làm mốc; cần tách hai thay đổi và đo cua/recovery trước khi tối ưu tiếp. Chưa sửa firmware trong lượt phân tích này.
+
+## B33 — Hoàn nguyên đặc tính cua B30 sau xác nhận cua rộng/văng
+
+- Owner trả lời: B32 chủ yếu cua rộng hoặc văng rồi mới bắt lại line. Chưa có lap numbers/log, root cause vật lý vẫn mở; không khẳng định coast là nguyên nhân duy nhất.
+- B33 trả zero command về short brake riêng channel và arc1,0→0,8 như B30; giữ explicit StopBrake/lease protection B32. Entry45/85 trở lại81/9%, không tăng gain/cue hoặc kéo dài arc. Controller/header/tuning được đối chiếu khớp B30 bỏ comment/whitespace.
+- Điều chỉnh tiêu chí ERR-052: B30 nhả chênh lệch ở handoff là policy được chấp nhận lại; giữ85/0 xuyên loss chưa chứng minh lợi ích hardware. Không tái áp B31 chỉ để tăng PWM differential.
+- Validation: B32 fail120036 với kỳ vọng phục hồi arc; B33 pass104172ARM+26Python, Keil0Error/0Warning và layout. BackupB32 source/BSP/HEX; xem [B33](restore-corner-b33.md).
+- Status: source-restored/tested, chưa nạp/thử B33; không tuyên bố nhanh hơn B30 hoặc đã sửa root cause hardware.
+
+## B34 — Owner yêu cầu cho phép bánh trong lùi ở góc valid gắt
+
+- B33 chỉ có signed pivot sau loss; owner muốn inner reverse/outer forward ở rẽ đột ngột. Không coi đây là defect hardware.
+- B34 mở signed PD khi TRACK/valid shape confirmed6ms/cùng phía/error>=2pitch/chưa cải thiện/chưa releasing; reverse tối đa20% theo corner_gain, clipMax và antiwindup. Không thêm pulse hoặc floor ép lái, cue giả vẫn là giới hạn heuristic.
+- Khi release, quay lại forward PD; ALIGN forward như cũ. Loss từ output đang âm không được vào forward arc, dùng search/deadline cũ. Giữ driver short-brake zero guard và mọi Stop/watchdog/Start interlocks.
+- Baseline B33 fail130035;104778ARM+26Python tests,Keil0Error/0Warning/layout pass. BackupB33 source/BSP/HEX. Chưa nạp hoặc đo thành tích; xem [B34](signed-corner-b34.md).

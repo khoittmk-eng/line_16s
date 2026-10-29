@@ -15,7 +15,7 @@ static void Seed(ControlState *s,ControlParameters *p,int sign)
     s->last_error=sign*2.0f; s->derivative=s->planner_rate=sign*30.0f;
     s->shape_ms=6; s->shape_dir=(int8_t)sign;
     s->corner_pending_ms=200; s->corner_pending_dir=(int8_t)sign;
-    s->corner_gain=0.6f;
+    s->corner_gain=1.0f;
 }
 void RunCornerReturnTests(void)
 {
@@ -27,12 +27,11 @@ void RunCornerReturnTests(void)
         Seed(&s,&p,sign);
         for(i=1;i<=2;++i) {
             Control_Step(&s,&p,sign*(2000-i*20),1,sign>0?0xF8:0x1F,2);
-            CHECK(s.corner_gain>0.5f && s.mode==CONTROL_TRACK);
+            CHECK(s.corner_gain>0.9f && s.mode==CONTROL_TRACK);
         }
         Control_Step(&s,&p,sign*1940,1,sign>0?0xF8:0x1F,2);
-        /* B28 still trusts its lagging outward planner here and retains .564.
-         * Confirmed fresh inward movement must begin fading extra P sooner. */
-        CHECK(s.corner_gain<0.5f && s.corner_gain>0 && sign*s.planner_rate>0);
+        /* Stronger B30 assist still fades on the B29 inward trend latch. */
+        CHECK(s.corner_gain<0.81f && s.corner_gain>0 && sign*s.planner_rate>0);
         CHECK(s.corner_releasing && s.corner_inward_ms>=6);
         CHECK(s.mode==CONTROL_TRACK && s.target==45 && s.left>0 && s.right>0);
         for(i=4;i<=8;++i) Control_Step(&s,&p,sign*(2000-i*20),1,sign>0?0xF8:0x1F,2);

@@ -108,7 +108,7 @@ void RunBlackboxTests(void)
     CHECK(status.saved && status.ram_saved && status.sequence==1);
     before=erase_count; CHECK(Blackbox_Save() && erase_count==before);
     output_bytes=0; CHECK(Blackbox_Export());
-    CHECK(Contains("# linefollower_blackbox_v1,firmware,B29,sequence,1,count,160\r\n"));
+    CHECK(Contains("# linefollower_blackbox_v1,firmware,B34,sequence,1,count,160\r\n"));
     CHECK(Contains("# values,45,45,85,12000,0,120,-1,255,12\r\n"));
     CHECK(Contains("# END,count,160,crc32,"));
     for(i=0,lines=0;i<output_bytes;++i) if(SERIAL_TEXT[i]=='\n') ++lines;
@@ -158,7 +158,7 @@ void RunBlackboxTests(void)
     CHECK(Robot_Start()); Robot_Stop(FAULT_NONE);
     CHECK(Robot_LogArm(1)); Blackbox_GetStatus(&status);
     CHECK(status.state==LOG_ARMED && status.saved && status.trigger==LOG_TRIGGER_CORNER);
-    /* B23 flag bit4 remains compatible with B29 CSV. */
+    /* B23 flag bit4 remains compatible with B30 CSV. */
     Blackbox_Start(1000,&p,1,raw,raw,raw,0);
     Control_Start(&s); s.mode=CONTROL_PROBE; s.probe_continue=1;
     Blackbox_Record(1002,raw,0,0xFF,0,&s);

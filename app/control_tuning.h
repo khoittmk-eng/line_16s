@@ -42,19 +42,24 @@
 #define CONTROL_REACQUIRE_MAX_MS 40U
 #define CONTROL_PIVOT_PERCENT 36.0f
 #define CONTROL_SEARCH_FAST_PERCENT 50.0f
-/* B28: bounded extra P only on a confirmed visible directional corner.
+/* B30: stronger wheel differential only on a confirmed visible corner.
+ * Keep B29's inward-trend release and forward-only mixer/Max bounds.
  * Override rise rate in the synthetic candidate comparison, not via OLED. */
-#define CONTROL_CORNER_GAIN_MAX 0.6f
+#define CONTROL_CORNER_GAIN_MAX 1.0f
+/* B34: signed PD only for a confirmed, large same-side visible corner. */
+#define CONTROL_CORNER_REVERSE_ERROR_PITCH 2.0f
+#define CONTROL_CORNER_REVERSE_MAX_PERCENT 20.0f
 #ifndef CONTROL_CORNER_GAIN_RISE_PER_MS
-#define CONTROL_CORNER_GAIN_RISE_PER_MS 0.05f
+#define CONTROL_CORNER_GAIN_RISE_PER_MS 0.08f
 #endif
 #ifndef CONTROL_CORNER_RETURN_CONFIRM_MS
 #define CONTROL_CORNER_RETURN_CONFIRM_MS 6U
 #endif
 #define CONTROL_CORNER_TREND_STEP_PITCH 0.01f
-#define CONTROL_CORNER_GAIN_RELEASE_PER_MS 0.05f
+#define CONTROL_CORNER_GAIN_RELEASE_PER_MS 0.08f
 /* B27: turn immediately with forward wheel differential before pivot fallback. */
 #define CONTROL_RECOVERY_ARC_MS 28U
+/* B33: restore B30's rolling arc after owner-reported B32 wide corners. */
 #define CONTROL_RECOVERY_ARC_STEERING 0.8f
 #define CONTROL_RECOVERY_ARC_MIN_PERCENT 35.0f
 #define CONTROL_GAP_STEER_ALPHA_PER_MS 0.04f /* Nominal 25 ms smoothing, dt 1..4 ms. */

@@ -4,6 +4,7 @@
 static uint16_t period;
 static volatile int16_t previous[2];
 static volatile uint32_t last_command_ms;
+static volatile uint8_t command_leased;
 static void SetWheel(uint8_t left, int16_t duty)
 {
     uint16_t in1 = left ? GPIO_Pin_9 : GPIO_Pin_10;
@@ -14,7 +15,8 @@ static void SetWheel(uint8_t left, int16_t duty)
     if (duty < -1000) duty = -1000;
     if (left) TIM_SetCompare2(TIM4, 0); else TIM_SetCompare1(TIM4, 0);
     if (duty == 0) {
-        /* Explicit datasheet short brake: IN1=IN2=H, PWM=L, STBY=H. */
+        /* B33: restore B30's short brake on zero drive/turn commands after
+         * owner-reported wide corners/overshoot with B32 zero coast. */
         GPIO_SetBits(GPIOA, in1 | in2);
     } else {
         uint8_t high = (duty > 0) ? polarity : !polarity;
@@ -80,9 +82,21 @@ void Motor_SetDuty(int16_t left, int16_t right)
     SetWheel(1, left); SetWheel(0, right);
     previous[0] = left; previous[1] = right;
     last_command_ms = Time_Millis();
+    /* Retain the B32 drive lease for every command, including 0/0. */
+    command_leased = 1;
     Time_RestoreIRQ(mask);
 }
-void Motor_StopBrake(void) { Motor_SetDuty(0, 0); }
+void Motor_StopBrake(void)
+{
+    uint32_t mask = Time_SaveIRQ();
+    /* Explicit stop/fault/maintenance brakes independently of drive mixing. */
+    TIM_SetCompare1(TIM4, 0); TIM_SetCompare2(TIM4, 0);
+    GPIO_SetBits(GPIOA, GPIO_Pin_8 | GPIO_Pin_9 | GPIO_Pin_10 | GPIO_Pin_11);
+    previous[0] = previous[1] = 0;
+    command_leased = 0;
+    last_command_ms = Time_Millis();
+    Time_RestoreIRQ(mask);
+}
 void Motor_StopCoast(void)
 {
     uint32_t mask = Time_SaveIRQ();
@@ -90,11 +104,12 @@ void Motor_StopCoast(void)
     /* Both direction inputs low AND PWM high: high-impedance stop. */
     TIM_SetCompare1(TIM4, period); TIM_SetCompare2(TIM4, period);
     previous[0] = 0; previous[1] = 0;
+    command_leased = 0;
     Time_RestoreIRQ(mask);
 }
 
 void Motor_SafetyTick(uint32_t now)
 {
-    if ((previous[0] || previous[1]) && (uint32_t)(now - last_command_ms) > 20U)
+    if (command_leased && (uint32_t)(now - last_command_ms) > 20U)
         Motor_StopBrake();
 }

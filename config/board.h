@@ -2,7 +2,7 @@
 #define BOARD_H
 #include "stm32f10x.h"
 /* Wiring from the owner; electrical orientation still needs bench verification. */
-#define BOARD_FIRMWARE_TAG "B29"
+#define BOARD_FIRMWARE_TAG "B34"
 #define BOARD_CONTROL_PERIOD_MS 2U
 #define BOARD_LED_PORT GPIOC
 #define BOARD_LED_PIN GPIO_Pin_13

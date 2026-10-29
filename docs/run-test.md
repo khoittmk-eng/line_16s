@@ -1,3 +1,13 @@
+> **B34 hiện tại:** Cho phép bánh trong lùi theo PD khi TRACK có cue valid cùng phía6ms, error≥2pitch và chưa về tâm; lùi tối đa20% theo gain và không vượtMax. Cua nhẹ/ALIGN giữ forward PD, driver giữ zero brake/guard, Base45/Max85 và PID nền12/0/0,12. 104.778 ARM assertions +26 Python tests pass; Keil 0 lỗi/cảnh báo. Chưa nạp/thử xe. Xem [B34](signed-corner-b34.md); policy cũ bên dưới là lịch sử khi mâu thuẫn.
+
+> **B33 hiện tại:** Owner báo B32 cua rộng/văng rồi bắt lại line, chậm hơn B30. B33 khôi phục zero brake và arc0,8 của B30, giữ bảo vệ Stop/watchdog B32; Base45/Max85, PID nền12/0/0,12. 104.172 ARM assertions +26 Python tests pass; Keil 0 lỗi/cảnh báo. Chưa nạp/thử B33 hoặc chứng minh nhanh hơn B30. Xem [B33](restore-corner-b33.md); policy cũ bên dưới là lịch sử khi mâu thuẫn.
+
+> **B32 hiện tại:** Lệnh motor 0% trong drive/turn chuyển sang coast từng bánh. Stop/fault/watchdog/maintenance vẫn brake; lease 20ms bao gồm cả lệnh0/0 coast. Giữ controller B31, Base45/Max85 và PID nền12/0/0,12. 104.172 ARM assertions +26 Python tests pass; Keil 0 lỗi/cảnh báo. Chưa nạp/thử xe. Xem [B32](coast-zero-b32.md); policy cũ bên dưới là lịch sử khi mâu thuẫn.
+
+> **B31 hiện tại:** Arc steering tăng 0,8→1,0 trong tối đa 28ms sau loss có hướng, tránh giảm chênh lệch đã đạt ở valid85/0. Giữ B30, Base45/Max85 và PID nền12/0/0,12; common bị giới hạn42,5% khi output85/0. 104.160 ARM assertions +26 Python tests pass; Keil 0 lỗi/cảnh báo. Chưa nhận probe USB, chưa nạp/thử xe. Xem [B31](sharp-arc-b31.md); policy cũ bên dưới là lịch sử khi mâu thuẫn.
+
+> **B30 hiện tại:** Owner chấp nhận xe dễ văng hơn để tăng chênh lệch hai bánh ở góc gắt. Extra P tối đa +100%, tăng/nhả 0,08/ms; giữ xác nhận góc và nhả sớm B29, Base45/Max85, PID nền12/0/0,12. 104.155 ARM assertions +26 Python tests pass; Keil 0 lỗi/cảnh báo. Chưa thử xe. Xem [B30](stronger-corner-b30.md); các policy cũ bên dưới là lịch sử khi mâu thuẫn.
+
 > **B29 hiện tại:** Giữ Base45/Max85 và PID nền12/0/0,12. ExtraP lên nhanh hơn, nhả sớm sau6ms error về tâm; xác nhận tăng lại để tránh bật/tắt do một mẫu nhiễu. Mốc ownerB28:16,3giây;55/60 từng chậm hơn45. Xem [B29](corner-return-b29.md). Chưahardware-verified; policy cũ bên dưới là lịch sử khi mâu thuẫn.
 
 > **B28 hiện tại:** Base45/Max85, PID nền12/0/0,12. Tăng P từ từ ở confirmed visible corner trước khi mất line; search50 trên trắng,36 khi có tín hiệu, nhậnPD ngay khi valid. Giữ B27 arc/nét đứt/driver. Đã so ba candidate bằng command trace; chưa hardware-verified. Xem [B28](visible-corner-b28.md); policy cũ bên dưới là lịch sử khi mâu thuẫn.

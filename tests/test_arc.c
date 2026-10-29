@@ -24,6 +24,19 @@ void RunArcTests(void)
     ControlParameters p;
     unsigned i,j,dt;
     int sign;
+    /* B33 restores B30's rolling handoff: after a saturated visible corner,
+     * keep its mean request and use a positive inner wheel during the arc. */
+    for(sign=-1;sign<=1;sign+=2) {
+        int16_t left,right;
+        Warm(&s,&p); p.kd=0; p.kp=100;
+        /* Keep testing forward saturation below B34's signed-corner gate. */
+        for(i=0;i<20;++i) Control_Step(&s,&p,sign*1500,1,sign>0?0xF8:0x1F,2);
+        left=s.left; right=s.right;
+        CHECK(sign*(left-right)==850);
+        Control_Step(&s,&p,0,0,0,2);
+        CHECK(s.recovery_arc && s.left>0 && s.right>0);
+        CHECK(s.left+s.right==left+right && sign*(s.left-s.right)==680);
+    }
     /* Independent of new fields: a rolling confirmed corner must request a
      * forward arc on its first lost frame, with the same mean PWM as entry. */
     for(sign=-1;sign<=1;sign+=2) {
@@ -33,13 +46,13 @@ void RunArcTests(void)
             float before=(s.left+s.right)/20.0f;
             Control_Step(&s,&p,0,0,0,2);
             CHECK(s.mode==CONTROL_TURN && s.left>0 && s.right>0);
-            CHECK(sign*(s.left-s.right)>0 && Abs(s.speed-before)<0.001f);
+            CHECK(sign*(s.left-s.right)==720 && Abs(s.speed-before)<0.001f);
             CHECK(!s.brake_count && !s.brake_ms);
         }
         CHECK(s.recovery_arc);
         for(i=0;i<13;++i) {
             Control_Step(&s,&p,0,0,0,2);
-            CHECK(s.recovery_arc && s.left>0 && s.right>0);
+            CHECK(s.recovery_arc && s.left>0 && s.right>0 && sign*(s.left-s.right)==720);
         }
         Control_Step(&s,&p,0,0,0,2);
         CHECK(!s.recovery_arc && s.recovery_ms==28);
@@ -54,8 +67,8 @@ void RunArcTests(void)
         float entering;
         Warm(&s,&p);
         for(i=0;i<3;++i) Control_Step(&s,&p,sign*1500,1,sign>0?0xF8:0x1F,2);
-        entering=(s.left+s.right)/20.0f;
         Control_Step(&s,&p,0,0,0,2);
+        entering=(s.left+s.right)/20.0f;
         for(i=0;i<j;++i) Control_Step(&s,&p,0,0,0,2);
         Control_Step(&s,&p,0,1,0x18,2);
         CHECK(s.mode==CONTROL_ALIGN && s.left>0 && s.right>0);

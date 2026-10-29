@@ -1,5 +1,61 @@
 # Repository working instructions
 
+B34 current (2026-10-29): read docs/signed-corner-b34.md. Owner wants inner
+reverse/outer forward on abrupt corners, superseding blanket valid-forward-only.
+Allow signed live PD only TRACK valid same-side shape confirmed6ms, e*dir>=2,
+e*planner_rate>=0, !releasing, correction*e>0. Reverse allowance=min(Max,20)*
+corner_gain; steering bound=min(speed+allowance,(Max+allowance)/2); antiwindup
+uses it, clip output[-allowance,Max]. No forced floor/timed pivot. Release on
+cleared/improving cue/trend; ALIGN stays forward PD. Keep B30 extraP,45/85,
+12/0/0.12,B33 zero brake/driver guard/watchdogs, arc0.8/28ms only forward entry,
+memory/deadlines/calibration/Start and Flash48/108. Signed loss bypasses arc.
+Baseline B33 fail130035;104778ARM+26Python pass;Keil0errors/warnings. BackupB33.
+No B34 flashing/hardware/lap validation; not a proven90deg/route classifier.
+
+B33 current (2026-10-29): read docs/restore-corner-b33.md. Owner reports B32
+slower than B30, specifically wide corners/overshoot then reacquisition. Restore
+B30 zero-command short brake and arc steering0.8 (28ms, same entry/deadline
+bounds). Keep45/85,12/0/0.12,B30 extraP and all interlocks/Flash48/108.
+Keep B32 independent StopBrake/command_leased safety logic; explicit coast API
+remains separate. Controller/header/tuning match B30 ignoring comments; driver
+drive semantics match pre-coast except retained lease flag. No new gain/cue tune.
+Baseline B32 fail120036;104172ARM+26Python pass;Keil0errors/warnings. BackupB32.
+No B33 flash/hardware/lap validation. Deliberate B30 handoff85/0->76.5/8.5 is
+accepted again; do not force B31 full-differential handoff without new evidence.
+
+Owner feedback after B32 trial (2026-10-29): B32 takes longer than B30.
+No lap numbers/repeated runs/log supplied yet. Treat as reported hardware
+regression, not emulator failure. Separate B31 arc1.0/common cap42.5 from B32
+zero-coast effects; neither is proven sole cause. B30 is the comparison baseline.
+Do not claim greater PWM differential or removing brake guarantees faster laps.
+
+B32 current (2026-10-29): read docs/coast-zero-b32.md. Owner explicitly accepts
+zero drive commands coasting while keeping Stop/fault/watchdog brakes.
+Motor_SetDuty zero uses LL/PWMhigh per channel; Motor_StopBrake independently
+uses HH/PWMlow, atomic, including boot/maintenance/Motor Test Stop. Keep reversal
+zero guard/stagger (now coast), STBY3V3. Drive lease must cover0/0 coast too:
+command_leased expires >20ms into brake; explicit StopCoast cancels lease.
+Nonzero-duty PWM scheme unchanged, not removal of all electrical braking.
+Keep B31 controller,45/85,12/0/0.12, arc28ms, memory/deadlines/interlocks and
+Flash48/108. Baseline B31 fail50048;104172ARM+26Python pass;Keil0errors/warnings.
+BackupB31 including BSP/source/HEX. No B32 hardware/lap validation or flashing.
+
+B31 current (2026-10-29): read docs/sharp-arc-b31.md. Owner asks best corner
+candidate and trial flashing. Arc steering0.8->1.0 to avoid relaxing valid85/0
+to76.5/8.5 at loss; arc request85/0 at45/85, mean capped42.5, not measured speed.
+Keep28ms/entry35/no post-turn renewal, B30 extraP,45/85,12/0/0.12, valid PD,
+search50/36, deadlines/memory/dash/driver/watchdogs/calibration and Flash48/108.
+Baseline B30 fail120036;104160ARM+26Python pass;Keil0errors/warnings. BackupB30.
+No hardware/lap validation; USB probe absent at preparation, no board flashed.
+
+B30 current (2026-10-29): read docs/stronger-corner-b30.md. Owner explicitly
+requests stronger wheel differential at sharp corners and accepts overshoot.
+Keep45/85 and base12/0/0.12; extraP ceiling1.0, rise/release0.08/ms. Preserve
+B29 cue eligibility and6ms inward release/outward rearm, valid forward PD/mixer
+bounds/antiwindup, search50/36, arc28ms, dash/memory/deadlines/driver,
+calibration/Start/watchdogs and Flash48/108 schema.104155ARM+26Python pass;
+Keil0errors/warnings. No B30 hardware/lap validation. BackupB29 source/HEX.
+
 B29 current (2026-10-29): read docs/corner-return-b29.md. Owner reports B28
 16.3s atBase45 and55/60 previously slower. Keep45/85, base gains12/0/0.12.
 Extra P rises0.05/ms instead of0.04, same0.6 ceiling. Fresh valid same-side

@@ -1,3 +1,7 @@
+> **B33 hiện tại:** Khôi phục short brake riêng channel khi zero drive như B30 theo phản hồi B32 cua rộng/văng. Explicit Stop/fault/watchdog vẫn brake; Motor_StopCoast riêng vẫn có. Wiring/STBY3V3 giữ nguyên. Chưa thử B33 trên board; xem [B33](restore-corner-b33.md). Các policy cũ bên dưới là lịch sử khi mâu thuẫn.
+
+> **B32 hiện tại:** STBY vẫn nối 3V3. Zero drive dùng IN1=IN2=Low, PWM=High để coast riêng channel; explicit Stop/fault/watchdog vẫn dùng short brake. Nonzero-duty PWM và wiring giữ nguyên. Chưa xác nhận waveform/dynamics trên board; xem [B32](coast-zero-b32.md). Các mô tả cũ bên dưới là lịch sử khi mâu thuẫn.
+
 > **B09:** wiring/driver short brake/STBY nối 3V3 giữ nguyên. Owner báo nét đứt/cua nhẹ khựng và chọn Base cruise; guide memory không là encoder/odometry. B09 chưa hardware-verified; xem [cruise-gap-b09.md](cruise-gap-b09.md).
 
 # Đặc tả giao tiếp phần cứng

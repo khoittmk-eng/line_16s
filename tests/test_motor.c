@@ -42,6 +42,20 @@ void RunMotorTests(void)
     DriverMotor_SetDuty(600,300);
     CHECK(TIM4->CCR2==2160 && TIM4->CCR1==1080);
     CHECK((GPIOA->ODR&pins)==(GPIO_Pin_8|GPIO_Pin_11));
+    /* B33: a zero inner-wheel command must brake without interrupting the
+     * driven outer wheel. Both directions and both channels are exercised. */
+    DriverMotor_SetDuty(850,0);
+    CHECK(TIM4->CCR2==3060 && TIM4->CCR1==0);
+    CHECK((GPIOA->ODR&pins)==(GPIO_Pin_8|GPIO_Pin_10|GPIO_Pin_11));
+    DriverMotor_SetDuty(0,850);
+    CHECK(TIM4->CCR2==0 && TIM4->CCR1==3060);
+    CHECK((GPIOA->ODR&pins)==(GPIO_Pin_8|GPIO_Pin_9|GPIO_Pin_11));
+    DriverMotor_SetDuty(0,0);
+    CHECK(!TIM4->CCR1 && !TIM4->CCR2 && (GPIOA->ODR&pins)==pins);
+    DriverMotor_SetDuty(-850,0);
+    CHECK(TIM4->CCR2==3060 && !TIM4->CCR1 && (GPIOA->ODR&pins)==(GPIO_Pin_9|GPIO_Pin_10|GPIO_Pin_11));
+    DriverMotor_SetDuty(0,-850);
+    CHECK(!TIM4->CCR2 && TIM4->CCR1==3060 && (GPIOA->ODR&pins)==(GPIO_Pin_8|GPIO_Pin_9|GPIO_Pin_10));
     DriverMotor_StopBrake();
     CHECK(!TIM4->CCR1 && !TIM4->CCR2 && (GPIOA->ODR&pins)==pins);
     DriverMotor_StopCoast();
@@ -53,21 +67,34 @@ void RunMotorTests(void)
     CHECK(TIM4->CCR1==720 && TIM4->CCR2==720);
     CHECK((GPIOA->ODR&pins)==(GPIO_Pin_9|GPIO_Pin_11));
     DriverMotor_SetDuty(200,-200); /* Pivot retarget: stagger both reversal guards. */
-    CHECK(TIM4->CCR1==720 && !TIM4->CCR2);
+    CHECK(TIM4->CCR1==720 && !TIM4->CCR2 && (GPIOA->ODR&pins)==(GPIO_Pin_8|GPIO_Pin_9|GPIO_Pin_11));
     DriverMotor_SetDuty(200,-200);
-    CHECK(!TIM4->CCR1 && TIM4->CCR2==720);
+    CHECK(!TIM4->CCR1 && TIM4->CCR2==720 && (GPIOA->ODR&pins)==(GPIO_Pin_8|GPIO_Pin_10|GPIO_Pin_11));
     DriverMotor_SetDuty(200,-200);
     CHECK(TIM4->CCR1==720 && TIM4->CCR2==720);
     /* A lower requested ceiling also bounds the briefly retained forward wheel. */
     DriverMotor_SetDuty(-100,100);
-    CHECK(!TIM4->CCR1 && TIM4->CCR2==360);
+    CHECK(!TIM4->CCR1 && TIM4->CCR2==360 && (GPIOA->ODR&pins)==(GPIO_Pin_8|GPIO_Pin_10|GPIO_Pin_11));
     DriverMotor_StopBrake();
-    CHECK(!TIM4->CCR1 && !TIM4->CCR2);
+    CHECK(!TIM4->CCR1 && !TIM4->CCR2 && (GPIOA->ODR&pins)==pins);
     /* Ordinary straight forward-to-reverse still zeroes both for its guard. */
     DriverMotor_SetDuty(400,400); DriverMotor_SetDuty(-200,-200);
-    CHECK(!TIM4->CCR1 && !TIM4->CCR2);
+    CHECK(!TIM4->CCR1 && !TIM4->CCR2 && (GPIOA->ODR&pins)==pins);
     DriverMotor_SetDuty(-200,-200);
     CHECK(TIM4->CCR1==720 && TIM4->CCR2==720);
+    DriverMotor_SafetyTick(Time_Millis()+21);
+    CHECK(!TIM4->CCR1 && !TIM4->CCR2 && (GPIOA->ODR&pins)==pins);
+    /* The B32 lease fix remains valid for zero drive commands; zero is now
+     * already braking before the lease expires. Explicit coast stays separate. */
+    DriverMotor_SetDuty(0,0);
+    DriverMotor_SafetyTick(Time_Millis()+20);
+    CHECK(!TIM4->CCR1 && !TIM4->CCR2 && (GPIOA->ODR&pins)==pins);
+    DriverMotor_SafetyTick(Time_Millis()+21);
+    CHECK(!TIM4->CCR1 && !TIM4->CCR2 && (GPIOA->ODR&pins)==pins);
+    DriverMotor_StopCoast(); /* Intentional standalone coast has no drive lease. */
+    DriverMotor_SafetyTick(Time_Millis()+21);
+    CHECK(TIM4->CCR1==3600 && TIM4->CCR2==3600 && !(GPIOA->ODR&pins));
+    DriverMotor_StopBrake();
     DriverMotor_SafetyTick(Time_Millis()+21);
     CHECK(!TIM4->CCR1 && !TIM4->CCR2 && (GPIOA->ODR&pins)==pins);
 }

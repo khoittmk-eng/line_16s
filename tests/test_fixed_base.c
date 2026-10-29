@@ -166,8 +166,8 @@ void RunFixedBaseTests(void)
             float before=Abs(s.last_correction);
             Control_Step(&s,&p,sign*1500,1,sign>0?0xF8:0x1F,2);
             CHECK(s.mode==CONTROL_TRACK && s.target==55);
-            CHECK(sign*s.last_correction>=18.0f && sign*s.last_correction<=23.401f);
-            CHECK(Abs(s.last_correction)<=before+1.801f && s.left>0 && s.right>0);
+            CHECK(sign*s.last_correction>=18.0f && sign*s.last_correction<=27.001f);
+            CHECK(Abs(s.last_correction)<=before+2.881f && s.left>0 && s.right>0);
         }
         CHECK(s.corner_pending_ms && s.corner_pending_dir==sign);
     }
