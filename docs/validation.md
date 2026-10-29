@@ -1,3 +1,42 @@
+> **B29 hiện tại:** Giữ Base45/Max85 và PID nền12/0/0,12. ExtraP lên nhanh hơn, nhả sớm sau6ms error về tâm; xác nhận tăng lại để tránh bật/tắt do một mẫu nhiễu. Mốc ownerB28:16,3giây;55/60 từng chậm hơn45. Xem [B29](corner-return-b29.md). Chưahardware-verified; policy cũ bên dưới là lịch sử khi mâu thuẫn.
+
+> **B28 hiện tại:** Base45/Max85, PID nền12/0/0,12. Tăng P từ từ ở confirmed visible corner trước khi mất line; search50 trên trắng,36 khi có tín hiệu, nhậnPD ngay khi valid. Giữ B27 arc/nét đứt/driver. Đã so ba candidate bằng command trace; chưa hardware-verified. Xem [B28](visible-corner-b28.md); policy cũ bên dưới là lịch sử khi mâu thuẫn.
+
+> **B27 hiện tại:** Base45/Max85, PID12/0/0,12; rẽ tiến bằng PWM đang có trong28ms đầu recovery rồi mới pivot nếu còn mất line. Nhận line ngay, bảo vệ retry góc vuông; lọc hướng GAP và stagger đảo chiều để tránh both-wheel zero khi retarget. Xem [B27](rolling-corner-b27.md). Chưa hardware-verified; các policy cũ bên dưới là lịch sử khi mâu thuẫn.
+
+> **B26 hiện tại:** Base45/Max85, PID12/0/0,12; TRACK cố định, P phản ứng ngay khi có line, rejoin giữ duty dưới cap40. Giữ recovery/góc vuông/nét đứt có giới hạn. Thêm cấu hình SWD rõ ràng và hướng dẫn lỗi nạp Keil. Xem [B26](corner-flow-b26.md) và [Keil/ST-Link](keil-download.md). **Chưa hardware-verified**; các policy cũ bên dưới là lịch sử khi mâu thuẫn.
+
+> **B25 hiện tại:** TRACK dùng Base cố định, bỏ boost/Straight và steering floor B24. Mất line sau góc đã xác nhận chuyển TURN trực tiếp; sửa lỗi sai số giữa ±0,5 làm đảo hướng tìm line. Giữ GAP, RECENTER/post-turn và watchdog. Mặc định Base55/Max85, PID12/0/0,12; PID Setup có5 dòng. Xem [hướng dẫn B25](fixed-base-b25.md). **Chưa hardware-verified**; các chính sách cũ bên dưới là lịch sử khi mâu thuẫn.
+
+> **B24 hiện tại:** bỏ xung BRAKE trước recovery; TURN trộn common/steering để tạo yaw ngay, valid corner có steering floor và bỏ cap32 do shape đơn thuần; reversal guard theo từng bánh. CORNER chờ cue có hướng/TURN/fault. Profile55/60/85, PID12/0/0,12. Xem [B24](speed-b24.md). Chưa hardware-verified; policy cũ bên dưới là lịch sử khi mâu thuẫn.
+
+## Validation B24 — 28/10/2026
+
+92.268ARMassertions,8parser/layout+18receiver tests pass. DirectTURN regression failed80023 onB23; B24 tests first-frame differential,dt1..4,Maxbounds/change, validshape floor/release, per-wheel/simultaneousreversal, CORNERstartupfilter, existingchain/GAP/deadline/watchdogs. Keil0error/warning; Code33468/RO1856/RW440/ZI10496bytes. HEX ends0x08008AD0 belowreserved0x0800C000. SHA256 `5B05781C3E7814AD2E46E5D81EE96CB0A5FDD6699E848F78AA4531F9749592EB` for `build/linefollower-B24.hex`. Backup `backups/B23-before-B24-20261028`. NoB24hardwarevalidation; PWMrequest/replay/registertests do not prove brakingdistance, heading orlapgain. See [speed-b24.md](speed-b24.md).
+
+> **B23 hiện tại:** sửa PROBE15 theo log thật: continuation tối đa32ms khi có guide giữa ổn định, cap32%, không tăng duty khi invalid; cue rẽ/memory/recovery có ưu tiên. Profile55/60/85, PID12/0/0,12. Xem [B23](speed-b23.md). Chưa hardware-verified; policy cũ bên dưới là lịch sử khi mâu thuẫn.
+
+## Validation B23 — 28/10/2026
+
+86.667 ARM assertions,8 parser/layout và18 receiver tests pass. Keil0 error/warning; Code33416/RO1856/RW440/ZI10496byte. HEX ends0x08008A9C < reserved log0x0800C000. SHA256 `5437B0D893D2FEEB214A25C52FE546DEDF9D5228E0FC705C5B7E01D680B67076` cho `build/linefollower-B23.hex`. Raw fixture từ hardware B22 seq2 tái hiện PROBE15 trước sửa; replay B23 xấp xỉ min32,0/rejoin32,1/end54,8% requested duty. Chưa hardware-verified B23; xem [speed-b23.md](speed-b23.md) về replay assumptions, guard tests và rủi ro. Backup `backups/B22-before-B23-20261028`.
+
+> **B22 hiện tại:** hộp đen RAM → Save Flash khi dừng → Export CSV qua PB12/CH340, 9600 8N1. Vào **6. System → N2: BLACK BOX**. Controller B21 giữ nguyên; không tự tối ưu PID. Xem [hướng dẫn B22](blackbox-b22.md). Chưa hardware-verified; nội dung cũ bên dưới là lịch sử khi mâu thuẫn.
+
+## Validation B22 — 28/10/2026
+
+- Controller/gains/estimator/motor driver byte-identical với backup B21; B22 thêm telemetry, maintenance và menu log.
+- ARMCC Cortex-M3 emulation: **84.890 assertions pass**. Thêm ring/pre-post/freeze, Save/Export interlocks, frame mới sau maintenance, CRC/torn writes/fallback/reboot, menu BLACK BOX, actual Flash/serial drivers với fake peripheral/clock.
+- **8 Python tests pass** trên CSV do C xuất trong emulator và HEX boundary/checksum.
+- Keil: **0 error / 0 warning**. Code **32.896**, RO **1.856**, RW **440**, ZI **10.496** byte.
+- Firmware HEX kết thúc trước **0x08008894**, dưới ranh giới **0x0800C000**. Scatter giới hạn48KiB firmware,16KiB cuối cho log; SRAM dùng trong20KiB.
+- Artifact: `build/linefollower-B22.hex`.
+- SHA256: `9A5CC6490BA319D6DF4E9AE73A3774222EB1E595ED7F48EBB607A2B2C5DB17B7`.
+- Backup: `backups/B21-before-B22-20261028`.
+- Chưa hardware-verified: cần Save/tắt-bật/Export trên board, kiểm tra baud PB12 bằng CH340, thử pause/resume ADC sau Save/Export và đo max_execution_us khi RUN. Fake clock/Flash không chứng minh timing/endurance hoặc quán tính xe.
+- Log chỉ lưu một cửa sổ ngắn, không cả map; xem [blackbox-b22.md](blackbox-b22.md).
+
+> **B21 hiện tại:** bỏ ENTRY_BRAKE khi line valid; tiếp tục forward PID và giảm PWM mượt ở cua mềm, giữ phanh khi mất line nhanh và bảo vệ chuỗi góc vuông. Profile 55/60/85, PID 12/0/0,12. Xem [B21](speed-b21.md). Các policy cũ bên dưới là lịch sử khi mâu thuẫn. Chưa hardware-verified.
+
 # Validation hiện tại — B09
 
 Ngày 24/10/2026. Owner báo nét đứt/cua nhẹ khựng, chọn Base cruise thay boost.

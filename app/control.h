@@ -1,9 +1,9 @@
 #ifndef CONTROL_H
 #define CONTROL_H
 #include <stdint.h>
-/* advance_ms retained for settings compatibility but ignored. */
+/* advance_ms is ignored. straight_percent is legacy CSV metadata, not a speed target. */
 typedef struct { float kp, ki, kd; uint16_t base_percent, straight_percent, max_percent; uint16_t advance_ms, align_ms; } ControlParameters;
-/* ADVANCE is a reserved legacy value; ALIGN now means sensor-based RECENTER. */
+/* ADVANCE and ENTRY_BRAKE are reserved legacy values; ALIGN now means sensor-based RECENTER. */
 typedef enum { CONTROL_STOPPED, CONTROL_TRACK, CONTROL_GAP, CONTROL_SEARCH, CONTROL_FAULT, CONTROL_TURN, CONTROL_PROBE, CONTROL_ADVANCE, CONTROL_ALIGN, CONTROL_BRAKE, CONTROL_ENTRY_BRAKE } ControlMode;
 typedef enum { FAULT_NONE, FAULT_ADC, FAULT_LINE, FAULT_TIMING, FAULT_UI, FAULT_OLED } ControlFault;
 typedef enum { LINE_STOP_NONE, LINE_STOP_GAP_TIMEOUT, LINE_STOP_TURN_TIMEOUT, LINE_STOP_AMBIGUOUS, LINE_STOP_NO_HISTORY, LINE_STOP_SATURATED } LineStopReason;
@@ -12,10 +12,8 @@ typedef struct {
     ControlMode mode;
     ControlFault fault;
     float speed, integral, derivative, last_error, last_correction;
-    float target, planner_rate, speed_bonus;
+    float target, planner_rate, speed_bonus; /* speed_bonus/cruise_ms reserved, zero in B25. */
     uint32_t cruise_ms, speed_guard_ms;
-    uint32_t fast_history_ms, entry_brake_ms;
-    uint8_t entry_latched;
     uint32_t curve_age_ms;
     int16_t curve_left, curve_right;
     uint8_t curve_valid;
@@ -32,6 +30,14 @@ typedef struct {
     int16_t left, right;
     int16_t guide_left, guide_right;
     uint8_t history, lost, may_cross_gap, guide_valid, recovery_seen_line;
+    uint8_t probe_continue;
+    float recovery_arc_speed;
+    float gap_correction;
+    uint8_t recovery_arc;
+    float corner_gain;
+    uint8_t search_near_line;
+    uint16_t corner_inward_ms, corner_outward_ms;
+    uint8_t corner_releasing;
 } ControlState;
 void Control_Defaults(ControlParameters *p);
 void Control_Stop(ControlState *s, ControlFault fault);

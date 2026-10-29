@@ -7,3 +7,10 @@ build/
 DebugConfig/
 
 backups/
+
+__pycache__/
+*.pyc
+*.o
+
+# Captured user logs stay local unless explicitly selected for sharing.
+logs/

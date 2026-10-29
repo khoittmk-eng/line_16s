@@ -100,3 +100,7 @@ Owner đã xác nhận calibration và Motor Test của bản trước. Polarity
 Hàng 8 mắt ở trước trục hai bánh chủ động khoảng 16 cm theo chiều dọc xe; đoạn line giữa hai góc khoảng 40 cm. Đây là kích thước gần đúng, không có wheel-speed feedback. Thời gian ADVANCE cần hiệu chỉnh trên xe, xem [square-wave.md](square-wave.md).
 
 B05: các số 16 cm/40 cm là ước lượng có thể chưa chính xác; không dùng để tính lệnh tiến/quay trong firmware hiện tại. Xem [b05-recovery.md](b05-recovery.md).
+
+## B22 — Cổng lấy log CH340
+
+PB12 được dành cho Software UART TX → CH340 RXD; GND nối chung. 9600 baud, 8N1, logic 3,3 V. Không nối CH340 TXD; không nối chân nguồn CH340 khi STM32 có nguồn riêng. Chỉ Export khi stopped; không đổi GPIO của sensor/motor/OLED/nút. ADC được pause trong Save/Export và resume với frame mới trước Start. CH340 không thay ST-Link để nạp firmware. Xem [blackbox-b22.md](blackbox-b22.md).

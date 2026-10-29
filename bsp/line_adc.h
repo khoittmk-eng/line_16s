@@ -12,4 +12,7 @@ typedef void (*LineFrameCallback)(const LineFrame *frame);
 void LineADC_SetCallback(LineFrameCallback callback);
 uint8_t LineADC_Init(void);
 void LineADC_GetFrame(LineFrame *frame);
+/* Stopped-only maintenance; preserve existing sticky capture errors. */
+void LineADC_PauseForLog(void);
+void LineADC_ResumeAfterLog(void);
 #endif

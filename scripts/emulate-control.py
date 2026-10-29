@@ -14,6 +14,10 @@ with open(sys.argv[1], 'rb') as source:
     cpu.mem_map(0x20000000, 0x5000)
     # RAM-backed peripheral address range for motor driver register request tests.
     cpu.mem_map(0x40000000, 0x30000)
+    # STM32 DBGMCU register request used by actual Board_Init (RAM model only).
+    cpu.mem_map(0xE0042000, 0x1000)
+    # Test-only Flash/serial sinks; these are not additional MCU RAM.
+    cpu.mem_map(0x60000000, 0x20000)
     # ARM scatter loading may keep RW initialization bytes in an RO load segment.
     # Load sections at their execution addresses because we enter C without __main.
     for section in elf.iter_sections():
@@ -45,5 +49,14 @@ with open(sys.argv[1], 'rb') as source:
     count, failure = read('test_count'), read('failure_line')
     if failure or not reached[0]:
         raise SystemExit(f'FAIL: assertions={count}, source failure line={failure}, completed={reached[0]}')
+    if 'blackbox_export_bytes' in symbols:
+        size = read('blackbox_export_bytes')
+        assert 0 < size < 65535
+        Path(sys.argv[1]).with_name('blackbox-export.csv').write_bytes(bytes(cpu.mem_read(0x60010000, size)))
+    if 'b23_replay_min_x10' in symbols:
+        print('B22 seq2 raw replay on current controller (commanded PWM, not dynamics): '
+              f'min={read("b23_replay_min_x10")/10:.1f}%, '
+              f'rejoin={read("b23_replay_rejoin_x10")/10:.1f}%, '
+              f'end={read("b23_replay_end_x10")/10:.1f}%.')
     print(f'PASS: {count} assertions executed from ARMCC-compiled C on Cortex-M3 emulation.')
-    print('Coverage: calibration, PD, speed planner and brake requests, visible-line authority, gaps/recovery, menu, start/stop, ADC/UI watchdogs and actual motor driver with fake SPL register writes. No physical dynamics/PWM timing validation.')
+    print('Coverage: controller, gaps/recovery, menu/interlocks/watchdogs, black-box ring/Flash/CSV, motor and log drivers with fake peripherals/clocks. No physical dynamics, Flash endurance or baud timing validation.')

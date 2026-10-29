@@ -31,7 +31,7 @@ void RunRecoveryTests(void)
     for(sign=-1;sign<=1;sign+=2) {
         Warm(&s,&p);
         for(i=0;i<4;++i) Control_Step(&s,&p,sign*1500,1,sign>0?0xF8:0x1F,2);
-        CHECK(s.mode==CONTROL_TRACK && s.left>=0 && s.right>=0 && s.target<=32);
+        CHECK(s.mode==CONTROL_TRACK && s.left>=0 && s.right>=0 && s.target<=p.base_percent);
         for(i=0;i<6;++i) Control_Step(&s,&p,0,1,0x18,2);
         for(i=0;i<3;++i) Control_Step(&s,&p,0,0,0,2);
         CHECK((s.mode==CONTROL_TURN || s.mode==CONTROL_BRAKE) && s.turn_dir==sign && !s.may_cross_gap);
@@ -56,7 +56,7 @@ void RunRecoveryTests(void)
     {
         int16_t left=s.left,right=s.right;
         for(i=0;i<120;++i) Control_Step(&s,&p,0,0,0,2);
-        CHECK(s.mode==CONTROL_GAP && s.left==left && s.right==right);
+        CHECK(s.mode==CONTROL_GAP && s.left>=left-1 && s.left<=left+1 && s.right>=right-1 && s.right<=right+1);
     }
     /* Pending expires without a forced turn while the line remains visible. */
     Warm(&s,&p);
@@ -86,7 +86,7 @@ void RunRecoveryTests(void)
     {
         int16_t left=s.left,right=s.right;
         for(i=0;i<120;++i) Control_Step(&s,&p,0,0,0,2);
-        CHECK(s.mode==CONTROL_GAP && s.left==left && s.right==right);
+        CHECK(s.mode==CONTROL_GAP && s.left>=left-1 && s.left<=left+1 && s.right>=right-1 && s.right<=right+1);
     }
     /* Brief successful center windows cannot repeatedly reset the search deadline. */
     Warm(&s,&p); Lose(&s,&p,1);
@@ -207,9 +207,10 @@ void RunRecoveryTests(void)
     Control_Defaults(&p); p.base_percent=45; p.straight_percent=45; p.max_percent=60; Warm(&s,&p);
     Control_Step(&s,&p,500,1,0x10,2);
     {
-        int16_t before_left=s.left, before_right=s.right;
+        int before_diff=s.left-s.right;
         Control_Step(&s,&p,0,0,0,2);
-        CHECK(s.mode==CONTROL_GAP && s.left==before_left && s.right==before_right);
+        CHECK(s.mode==CONTROL_GAP && s.left>0 && s.right>0);
+        CHECK(s.left-s.right<before_diff); /* Filter the dash-edge D kick. */
     }
     /* Asymmetric split corner after centered tracking has no valid extreme centroid. */
     for(sign=-1;sign<=1;sign+=2) {
@@ -225,7 +226,7 @@ void RunRecoveryTests(void)
         CHECK(s.mode==CONTROL_PROBE); /* Alternating noise cannot confirm a side. */
     }
     Control_Defaults(&p);
-    CHECK(p.base_percent==55 && p.max_percent==85 && p.advance_ms==0 && p.align_ms==12);
+    CHECK(p.base_percent==45 && p.max_percent==85 && p.advance_ms==0 && p.align_ms==12);
     p.base_percent=20; p.straight_percent=20; p.max_percent=30;
     /* Golden invariant: visible single line never enters a geometry/timed pivot, even at an edge. */
     p.advance_ms=800; /* Wrong legacy geometry must have no effect. */
@@ -304,14 +305,15 @@ void RunRecoveryTests(void)
     Control_Defaults(&p); p.base_percent=45; p.straight_percent=45; p.max_percent=60; Warm(&s,&p);
     Control_Step(&s,&p,500,1,0x10,2);
     {
-        int16_t left=s.left,right=s.right;
+        int16_t left=(int16_t)((s.guide_left+s.guide_right)/2.0f+s.gap_correction*10.0f);
+        int16_t right=(int16_t)((s.guide_left+s.guide_right)/2.0f-s.gap_correction*10.0f);
         for(i=0;i<4;++i) {
             Control_Step(&s,&p,0,0,0x24,2);
-            CHECK(s.mode==CONTROL_GAP && s.left==left && s.right==right && !s.brake_count);
+            CHECK(s.mode==CONTROL_GAP && s.left>=left-1 && s.left<=left+1 && s.right>=right-1 && s.right<=right+1 && !s.brake_count);
         }
         for(i=0;i<120;++i) {
             Control_Step(&s,&p,0,0,0,2);
-            CHECK(s.mode==CONTROL_GAP && s.left==left && s.right==right && !s.brake_count);
+            CHECK(s.mode==CONTROL_GAP && s.left>=left-1 && s.left<=left+1 && s.right>=right-1 && s.right<=right+1 && !s.brake_count);
         }
         Control_Step(&s,&p,0,1,0x18,2);
         CHECK(s.mode==CONTROL_TRACK && s.derivative==0 && s.target==45);

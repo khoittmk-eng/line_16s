@@ -32,7 +32,7 @@ int main(void)
     /* Foreground startup delay for OLED power stabilization; interrupts continue. */
     {
         uint32_t start = Time_Millis();
-        while ((uint32_t)(Time_Millis() - start) < 100U) { __WFI(); }
+        while ((uint32_t)(Time_Millis() - start) < 100U) { }
     }
     oled_ready = OLED_Init();
     while (1) {
@@ -70,6 +70,6 @@ int main(void)
                 Menu_Process(&no_events, &debug_line, adc_stale, 0, Time_Millis());
             }
         }
-        __WFI();
+        /* CPU giu chay lien tuc: khong vao WFI de giu kenh SWD luon san sang cho ST-Link/Keil */
     }
 }

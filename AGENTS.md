@@ -1,5 +1,61 @@
 # Repository working instructions
 
+B29 current (2026-10-29): read docs/corner-return-b29.md. Owner reports B28
+16.3s atBase45 and55/60 previously slower. Keep45/85, base gains12/0/0.12.
+Extra P rises0.05/ms instead of0.04, same0.6 ceiling. Fresh valid same-side
+confirmed-cue error decreasing by>0.01pitch/frame for6ms latches releasing;
+fade extra toward0 at0.05/ms while filtered planner still outward. Plateau
+keeps release;6ms clear outward movement rearms eligibility; cue/mode changes,
+invalid, Stop/recovery reset trend. Never clear corner memory or alter deadlines
+from this trend. Preserve B28 soft PID,15msD/40msrate, search50/36, arc28ms,
+dash/driver/watchdogs/calibration and Flash48/108 schema. Baseline fail140035;
+104149ARM+26Python tests and three-candidate command comparison pass; Keil0
+errors/warnings. No B29 hardware/lap validation. BackupB28 source/header/HEX.
+
+B28 current (2026-10-29): read docs/visible-corner-b28.md. Owner reports B27
+Base45 lap17.30s, dash improved, requests earlier corner steering/multiple
+approaches. Keep45/85 and base gains12/0/0.12. TRACK confirmed directional
+shape6ms + same-side error>=1pitch + nonimproving planner rate schedules extra
+P toward0.6*clamp(abs(e)-1,0,1), rise0.04/ms. Reset assist when ineligible,
+invalid/Stop/recovery; no abrupt B24 floor or Kd switch. Keep output clipping
+and antiwindup using effective P. Search pivot50 only when mask0; nonzero
+invalid mask36; valid always immediate forward PD, rejoin cap40 preserved.
+Keep B27 arc/dash/driver and all deadlines/interlocks. Three ARM command-only
+candidates compared: B27, abrupt gain, gradual gain; gradual chosen for smaller
+entry step, not measured lap improvement. Baseline fail130035;104022ARM+26Python
+tests pass, Keil0errors/warnings, not hardware-tested. Extra gain is not a proven
+90deg classifier. CSV logs base gains; format48/108 unchanged. BackupB27.
+
+B27 current (2026-10-29): read docs/rolling-corner-b27.md. Owner reports B26
+improvement at45, accepts more body overshoot for faster corners. Keep45/85,
+12/0/0.12, fixed Base/valid forward PID. On confirmed loss from forward mean>=35,
+TurnOutput uses entry common with0.8 steering for first28ms of the existing
+recovery episode (clamp byMax/1.8), then pivot36 fallback. Any valid frame yields
+immediately; successful arc rejoin usesBase instead of cap40. Post-turn retry
+cannot renew arc/deadline; slow/reverse entry keeps pivot. Preserve1200ms/GAP
+bounds and watchdogs. Gap-only correction filter0.04 per ms smooths stored dash
+direction, not TRACK PID or ambiguity guide; keep clipping/deadband. Driver
+stagger both reversals only for pivot retarget, capped to new forward request;
+each reversing channel still gets zero, explicitStop remains immediate. B26
+baselines fail120032/controller and50056/driver.102331ARM+26Python tests pass;
+no hardware/lap validation. CSV/Flash layout unchanged. BackupB26.
+
+B26 current (2026-10-29), superseding conflicting older profiles below: read
+docs/corner-flow-b26.md and docs/keil-download.md. Owner reports Base45 more
+stable than55 and requests quicker forward corner following. Defaults45/85,
+gains12/0/0.12; fixed Base TRACK, no boost. Remove whole-correction slew, retain
+15ms D filter/antiwindup. RECENTER preserves current command magnitude under
+min(Base,40), post-turn cap40, existing center/deadline/memory bounds remain.
+Valid line has immediate forward PD; signed pivot only after confirmed loss.
+Do not impose an inner-wheel floor or change coast/brake/estimator without
+evidence. Preserve55/85 regression preset alongside new45/85 tests. Board helper
+writes known SWD-enabled SWJ_CFG with OLED remap, masking write-only readback.
+No Save was pressed when owner saw download failure; no NRST wire exists yet.
+ERR-043 Sleep explanation is unconfirmed, clarified by ERR-045; never claim
+physical download fixed from emulator tests. No option-byte/full erase actions.
+101895 ARM assertions+26 Python tests, Keil0errors/0warnings; not hardware-tested.
+Backup B25 source/HEX; read error log before related edits.
+
 Before editing firmware, read `docs/README.md`, `docs/hardware.md`,
 `docs/bringup.md`, and `docs/error-log.md`.
 Review the error log for known causes and prevention checks before implementing related code.
@@ -45,3 +101,13 @@ B18 current: owner explicitly requests continued optimization. Read docs/speed-b
 B19 current: owner requests OLED Straight parameter. Read docs/speed-b19.md. Defaults Base55/Straight60/Max85. Straight replaces hard cap55/bonus10/headroom15; clamp between Base/Max, central corridor0.8/no outerC3/80ms and guards before bonus. Keep B18 curve/recovery/bridge/brake/watchdogs. Six PID rows at y10+7*i, speeds step5 and RAM-only. Tests explicitly set Straight for old profiles; no assumption that Base/Max alone disables boost. Owner confirms B18 whole map stable; B19 not hardware-verified.
 
 B20 current: explicit owner authorization for proactive corner braking supersedes the old blanket ban on braking while valid. Read docs/speed-b20.md. Defaults55/60/85, gains12/0/0.12 confirmed by owner. ENTRY_BRAKE is separate from recovery: confirmed valid broad shape6ms + recent fast center150ms + mean commanded duty>=50 + latch/no-post-turn; bounded8ms, ordinary valid cancels, invalid transfers only remainder into the existing recovery budget. No timed pivot on valid line. Soft steering build-up slew800 only moderate/no-corner/no-outward conditions; release correction immediately, reverse from zero, edge keeps full PD. Post-turn cap35 until trusted-center60ms (existing TTL200ms applies). ZERO/ENTRY diagnostics survive Stop; five N1 stopped pages. Never claim line identity guaranteed from a single sensor row. Preserve B18 bridge/GAP/watchdogs. 34861 assertions; test suite instruction budget300M with60s timeout is not hardware WCET. B20 not hardware-verified.
+
+B21 current: explicit owner request supersedes B20 valid-line ENTRY_BRAKE. Read docs/speed-b21.md. Remove entry pulse/history/latch; valid broad corners keep forward PD and cap32. Soft deceleration120 only when existing moderate smooth gate holds and target>=Base; edge/outward/corner/recovery keep600. Gains/default55/60/85 unchanged. ENTRY enum/diagnostics retained as reserved, never emitted. Preserve bounded loss brake12, repeated-square memory, post-turn cap, GAP/bridge/watchdogs. 37251 assertions; Keil0 errors/warnings; not hardware-verified. Do not label PWM easing as a measured parabolic trajectory.
+
+B22 current: owner authorizes black-box telemetry and persistent export via CH340. Read docs/blackbox-b22.md. Preserve B21 control.c/control_tuning.h; do not infer physical speed or brake force from PWM requests. Record a bounded 160x48-byte ring from control frames (4ms + event/mode bypass), freeze on first LOSS/CORNER window or Stop. No Flash/CSV/UART work in control ISR. Only stopped Robot_Log APIs may Save/Export; motor brake, ADC pause/resume preserving pending/sticky capture failures, require a fresh post-maintenance frame before Start. Reserve final16KiB Flash in linker/HEX checker; two8KiB slots, CRC32 and commit-last, latest valid generation on boot. PB12 Software UART TX9600/8N1 -> CH340 RXD; GND common, no RX or power pin required. System N2 BLACK BOX; keep six main items. ARM discards RAM only; never silently overwrite frozen RAM or export old Flash while new RAM awaits Save. Keep CSV CRC/schema/parser and record layout static asserts. Test actual log drivers with fake Flash/clock, never claim that proves physical persistence/baud. Flash write stalls and UART mask IRQ only while stopped. Export before reflash/full erase; B21 backups are local. Need hardware timing, power-cycle and serial validation.
+
+B23 current: explicit owner authorization supersedes B22's preserve-controller-only restriction. Read docs/speed-b23.md and hardware log analysis seq2 CRC B4544906. Bounded ambiguity continuation: latch once per loss after trusted center40ms/guide age<=10ms/error<=0.8/rate<=4, both guide commands positive, current central pair present, no entry SplitDirection/no guard/corner/recovery/post-turn. PROBE <=32ms, cap min(Base,32,current duty), preserve trusted guide ratio, high duty decelerates600, never increase on invalid or use its centroid. Confirmed split/pending retains priority; white/anchor loss/expiry cancels permanently for this episode. Keep lost/ambiguous/deadlines, GAP and square-wave policy. Replay raw fixture approximates missing2ms frames; do not claim physical dynamics or lap improvement. Gains/profile55/60/85 unchanged. Flagbit4 marks continuation; record48/header108/CSVv1/Flash layout unchanged. 86667 ARM assertions +8 parser/layout +18 receiver tests; Keil0errors/warnings, not hardware-verified. Backup B22. Keep emulator300M/60s and complete test_done.
+
+B24 current: owner explicitly requests removing brake-before-turn and earlier steering; supersedes B06/B23 policies preserving recovery brake/valid-shape cap. Read docs/speed-b24.md and seq3 analysis. BeginRecovery always TURN, no BRAKE pulse; BRAKE/ENTRY enums only legacy log compatibility. Pivot ramps common->0 at600 and steering->signed min(Max,36) at1800, bounds safe even when Max changes. Valid confirmed directional shape adds0.8*steering_limit floor only in TRACK with e*shape_dir>=1 and e*planner_rate>=0; release on improving/cleared cue. Remove shape-only target32; keep CruiseTarget edge/outward risk, PD/gains/default55/60/85, bounded ambiguity/GAP, post-turnmemory/deadlines/watchdogs. Motor reversal zero is per-channel; both channels may zero if both reverse. ExplicitStop/fault/maintenance brake stays. CORNER triggers directional valid/pending/TURN or fault, not directionlessPROBE; LOSS unchanged. Owner's seq3 CRC3ED4E91F shows B23 startup31.1% PROBE withoutBRAKE, not evidence of high-speed corner braking. 92268ARMassertions+26Pythontests; Keil0errors/warnings, B24notphysicalvalidated. BackupB23; export logs beforeflash. No geometryadvance/minspin/forcedpivot onvalid or invented direction onFF.
+
+B25 current: owner reports B24 hardware regression and explicitly requests fixed high Base without straight boost. Read docs/fixed-base-b25.md. Supersedes B15-B24 boost/curve-risk target scheduling and B24 shape floor/common-ramped pivot: TRACK target=Base; ignore legacy straight_percent, menu5 rows with compatibility field synced toBase. Keep12/0/0.12, Base55/Max85; startup ramp remains. Confirmed pending loss entersTURN immediately unless a new opposite split needs its6ms confirmation; direct symmetric min(Max,36) request, per-wheel motor reversal guard unchanged. Weak central +/-0.5 must not overwrite pending/ALIGN/post-turn direction; strong>=1.2 or confirmed split can retarget. Preserve ALIGN30/postturn35, GAP/ambiguity bounds, deadlines, calibration/watchdogs/noautoStart. BaselineB24 repro90048, B25 97520ARM+26Python tests, Keil0errors/warnings; nohardwarevalidation. No geometryADVANCE/minspin. BackupB24; update error log for new issues.

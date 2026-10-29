@@ -18,7 +18,7 @@
           <Vendor>STMicroelectronics</Vendor>
           <PackID>Keil.STM32F1xx_DFP.2.4.1</PackID>
           <PackURL>https://www.keil.com/pack/</PackURL>
-          <Cpu>IRAM(0x20000000,0x00005000) IROM(0x08000000,0x00010000) CPUTYPE("Cortex-M3") CLOCK(8000000) ELITTLE</Cpu>
+          <Cpu>IRAM(0x20000000,0x00005000) IROM(0x08000000,0x0000C000) CPUTYPE("Cortex-M3") CLOCK(8000000) ELITTLE</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
           <StartupFile></StartupFile>
           <FlashDriverDll>UL2CM3(-S0 -C0 -P0 -FD20000000 -FC1000 -FN1 -FF0STM32F10x_128 -FS08000000 -FL020000 -FP0($$Device:STM32F103C8$Flash\STM32F10x_128.FLM))</FlashDriverDll>
@@ -250,7 +250,7 @@
               <IROM>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0x10000</Size>
+                <Size>0xc000</Size>
               </IROM>
               <XRAM>
                 <Type>0</Type>
@@ -275,7 +275,7 @@
               <OCR_RVCT4>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0x10000</Size>
+                <Size>0xc000</Size>
               </OCR_RVCT4>
               <OCR_RVCT5>
                 <Type>1</Type>
@@ -360,16 +360,16 @@
             </VariousControls>
           </Aads>
           <LDads>
-            <umfTarg>1</umfTarg>
+            <umfTarg>0</umfTarg>
             <Ropi>0</Ropi>
             <Rwpi>0</Rwpi>
             <noStLib>0</noStLib>
             <RepFail>1</RepFail>
-            <useFile>0</useFile>
+            <useFile>1</useFile>
             <TextAddressRange>0x08000000</TextAddressRange>
             <DataAddressRange>0x20000000</DataAddressRange>
             <pXoBase></pXoBase>
-            <ScatterFile></ScatterFile>
+            <ScatterFile>.\config\linefollower.sct</ScatterFile>
             <IncludeLibs></IncludeLibs>
             <IncludeLibsPath></IncludeLibsPath>
             <Misc></Misc>
@@ -407,6 +407,11 @@
               <FileType>1</FileType>
               <FilePath>.\app\robot.c</FilePath>
             </File>
+            <File>
+              <FileName>blackbox.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\app\blackbox.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -441,6 +446,16 @@
               <FileName>timebase.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\bsp\timebase.c</FilePath>
+            </File>
+            <File>
+              <FileName>log_storage.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\bsp\log_storage.c</FilePath>
+            </File>
+            <File>
+              <FileName>log_serial.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\bsp\log_serial.c</FilePath>
             </File>
           </Files>
         </Group>

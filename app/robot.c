@@ -1,6 +1,8 @@
 #include "robot.h"
 #include "timebase.h"
 #include "motor.h"
+#include "blackbox.h"
+#include "log_serial.h"
 static LineEstimator line;
 static uint16_t last_raw[LINE_COUNT];
 static ControlParameters parameters;
@@ -12,6 +14,8 @@ static uint32_t frames, max_execution_us, timing_errors, previous_cycle;
 static int8_t steering_sign = 1;
 static RobotTrace last_run;
 static RobotDiagnostics diagnostics;
+static uint8_t log_busy;
+static uint8_t log_wait_frame;
 static void ResetDiagnostics(void)
 {
     static const RobotDiagnostics empty={0};
@@ -40,12 +44,14 @@ void Robot_Init(void)
     last_frame_ms = ui_alive_ms = frames = max_execution_us = timing_errors = previous_cycle = 0;
     steering_sign = 1; last_run.valid=0;
     ResetDiagnostics();
+    log_busy=log_wait_frame=0; Blackbox_Init();
 }
 void Robot_Stop(ControlFault fault)
 {
     uint32_t mask = Time_SaveIRQ();
     if(run_requested && controller.mode!=CONTROL_STOPPED && controller.mode!=CONTROL_FAULT) CaptureLastRun();
     run_requested = 0; emergency_fault = fault;
+    Blackbox_Stop(Time_Millis(),fault);
     Control_Stop(&controller, fault); Motor_StopBrake();
     Time_RestoreIRQ(mask);
 }
@@ -57,7 +63,7 @@ RobotStartReason Robot_GetStartReason(void)
 {
     RobotStartReason reason = START_READY;
     uint32_t mask = Time_SaveIRQ();
-    if (capture_fault || !frames || (uint32_t)(Time_Millis() - last_frame_ms) > 10U) reason = START_ADC;
+    if (log_busy || log_wait_frame || capture_fault || !frames || (uint32_t)(Time_Millis() - last_frame_ms) > 10U) reason = START_ADC;
     else if (line.calibrating) reason = START_CALIBRATING;
     else if (!line.calibrated) reason = START_NEED_CALIB;
     else if (!line.white_reference_valid) reason = START_NEED_WHITE;
@@ -72,6 +78,7 @@ uint8_t Robot_Start(void)
     uint32_t now = Time_Millis();
     uint8_t ready = Robot_GetStartReason() == START_READY;
     if (ready) {
+        Blackbox_Start(now,&parameters,steering_sign,line.low,line.high,line.white,line.raw_high_mask);
         ResetDiagnostics(); diagnostics.valid=1;
         Control_Start(&controller); emergency_fault = FAULT_NONE;
         ui_alive_ms = now; run_requested = 1;
@@ -103,6 +110,7 @@ void Robot_OnFrame(const LineFrame *frame)
         for (i = 0; i < LINE_COUNT; ++i) last_raw[i] = frame->raw[i];
     }
     Line_Update(&line, frame->raw);
+    if(!log_busy) log_wait_frame=0;
     if (!run_requested) return;
     {
         uint32_t interval_us=interval/(SystemCoreClock/1000000U);
@@ -170,6 +178,16 @@ void Robot_OnFrame(const LineFrame *frame)
             Motor_SetDuty(controller.left, controller.right);
             CaptureLastRun();
         }
+        {
+            uint8_t canonical_mask=line.mask, bit, reversed=0;
+            if(steering_sign<0) {
+                for(bit=0;bit<8;++bit) if(canonical_mask&(1U<<bit)) reversed|=(uint8_t)(1U<<(7U-bit));
+                canonical_mask=reversed;
+            }
+            Blackbox_Record(frame->timestamp_ms,frame->raw,(int16_t)(line.error*steering_sign),
+                            canonical_mask,line.valid,&controller);
+            if(!run_requested) Blackbox_Stop(frame->timestamp_ms,controller.fault);
+        }
         Time_RestoreIRQ(mask);
     }
     elapsed_us = (Time_Cycles() - start) / (SystemCoreClock / 1000000U);
@@ -182,7 +200,9 @@ void Robot_Watchdog(uint32_t now)
     if (!run_requested) return;
     if ((uint32_t)(now - last_frame_ms) > 10U) emergency_fault = FAULT_ADC;
     else if ((uint32_t)(now - ui_alive_ms) > 100U) emergency_fault = FAULT_UI;
-    if (emergency_fault != FAULT_NONE) Motor_StopBrake();
+    if (emergency_fault != FAULT_NONE) {
+        Motor_StopBrake(); Blackbox_Stop(now,emergency_fault);
+    }
 }
 void Robot_UIAlive(uint32_t now) { ui_alive_ms = now; }
 void Robot_GetLastRun(RobotTrace *out)
@@ -249,4 +269,31 @@ void Robot_ToggleSteering(void)
     uint32_t mask = Time_SaveIRQ();
     Robot_Stop(FAULT_NONE); steering_sign = -steering_sign;
     Time_RestoreIRQ(mask);
+}
+uint8_t Robot_LogArm(uint8_t corner_trigger)
+{
+    uint32_t mask=Time_SaveIRQ();
+    if(run_requested || log_busy) { Time_RestoreIRQ(mask); return 0; }
+    Blackbox_Arm(corner_trigger?LOG_TRIGGER_CORNER:LOG_TRIGGER_LOSS);
+    Time_RestoreIRQ(mask); return 1;
+}
+static uint8_t LogBegin(void)
+{
+    uint32_t mask=Time_SaveIRQ();
+    if(run_requested || log_busy) { Time_RestoreIRQ(mask); return 0; }
+    log_busy=log_wait_frame=1; Motor_StopBrake(); Time_RestoreIRQ(mask); return 1;
+}
+uint8_t Robot_LogSave(void)
+{
+    uint8_t ok;
+    if(!LogBegin()) return 0;
+    ok=Blackbox_Save(); log_busy=0; return ok;
+}
+uint8_t Robot_LogExport(void)
+{
+    uint8_t ok;
+    if(!LogBegin()) return 0;
+    LineADC_PauseForLog(); LogSerial_Init();
+    ok=Blackbox_Export();
+    LineADC_ResumeAfterLog(); log_busy=0; return ok;
 }

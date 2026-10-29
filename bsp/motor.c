@@ -62,10 +62,20 @@ void Motor_Init(void)
 void Motor_SetDuty(int16_t left, int16_t right)
 {
     uint32_t mask = Time_SaveIRQ();
-    /* Insert a zero-command update on reversal; not a calibrated mechanical dwell. */
-    if ((left > 0 && previous[0] < 0) || (left < 0 && previous[0] > 0) ||
-        (right > 0 && previous[1] < 0) || (right < 0 && previous[1] > 0)) {
-        left = 0; right = 0;
+    uint8_t reverse_left=(left>0 && previous[0]<0) || (left<0 && previous[0]>0);
+    uint8_t reverse_right=(right>0 && previous[1]<0) || (right<0 && previous[1]>0);
+    /* Guard each reversing wheel separately. An inner-wheel reversal must not
+     * interrupt the outer wheel's forward arc command. */
+    if(reverse_left && reverse_right && ((left>0 && right<0) || (left<0 && right>0))) {
+        /* Changing pivot direction must not insert a both-wheel zero command.
+         * Guard the new forward wheel first and briefly retain the old forward
+         * wheel, capped by the new forward request. Next update guards the
+         * remaining wheel. Explicit Stop and straight reversal bypass this. */
+        if(left>0) { right=previous[1]<left?previous[1]:left; left=0; }
+        else { left=previous[0]<right?previous[0]:right; right=0; }
+    } else {
+        if(reverse_left) left=0;
+        if(reverse_right) right=0;
     }
     SetWheel(1, left); SetWheel(0, right);
     previous[0] = left; previous[1] = right;

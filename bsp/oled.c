@@ -1,4 +1,5 @@
 #include "board.h"
+#include "board_init.h"
 #include "oled.h"
 #include "timebase.h"
 static uint8_t buffer[1024];
@@ -152,7 +153,7 @@ uint8_t OLED_Init(void)
     };
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_AFIO, ENABLE);
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, ENABLE);
-    GPIO_PinRemapConfig(GPIO_Remap_I2C1, ENABLE);
+    Board_RemapOLEDAndKeepSWD();
     GPIO_StructInit(&gpio);
     gpio.GPIO_Pin = GPIO_Pin_8 | GPIO_Pin_9;
     gpio.GPIO_Mode = GPIO_Mode_AF_OD;

@@ -2,6 +2,7 @@
 #include "oled.h"
 #include "motor.h"
 #include "robot.h"
+#include "blackbox.h"
 #include <stdio.h>
 #define TEST_DUTY 200
 #define TEST_TIMEOUT_MS 2000U
@@ -11,6 +12,18 @@ static uint8_t mainIndex, pidIndex, isEditingPID, calibState, motorTestIdx, moto
 static uint32_t motor_started_ms;
 static uint8_t notice, suppress_run_release, isEditingCorner, show_last;
 static uint32_t last_service_ms;
+static uint8_t log_index, log_notice;
+static uint8_t LogProgress(const char *message)
+{
+    uint8_t page;
+    OLED_Clear();
+    OLED_DrawString(0,0,"BLACK BOX " BOARD_FIRMWARE_TAG,1);
+    OLED_DrawString(0,20,message,1);
+    OLED_DrawString(0,36,"MOTORS STOPPED",1);
+    OLED_DrawString(0,52,"PLEASE WAIT",1);
+    for(page=0;page<8;++page) if(!OLED_FlushPage(page)) return 0;
+    return 1;
+}
 static const char *SpeedLabel(SpeedReason reason)
 {
     static const char *labels[]={"OFF","BASE","BST","CURV","WAIT","GAP","REC","BRK","PRB","CRN"};
@@ -26,6 +39,7 @@ void Menu_Init(void)
     currentMenu = MENU_MAIN;
     mainIndex = pidIndex = isEditingPID = calibState = motorTestIdx = motorTestActive = notice = 0;
     isEditingCorner = suppress_run_release = show_last = 0;
+    log_index=log_notice=0;
     ResetParameters();
     Motor_StopBrake();
 }
@@ -41,8 +55,7 @@ static void ChangeParameter(int direction)
         if (*value < 0.0f) *value = 0.0f;
         if (*value > maximum) *value = maximum;
     } else {
-        uint16_t *speed = pidIndex == 3 ? &menu_parameters.base_percent :
-                          pidIndex == 4 ? &menu_parameters.straight_percent : &menu_parameters.max_percent;
+        uint16_t *speed = pidIndex == 3 ? &menu_parameters.base_percent : &menu_parameters.max_percent;
         int next = (int)*speed + direction * 5;
         if (next < 0) next = 0;
         if (next > 100) next = 100;
@@ -51,11 +64,9 @@ static void ChangeParameter(int direction)
             if (pidIndex == 3) menu_parameters.max_percent = menu_parameters.base_percent;
             else menu_parameters.base_percent = menu_parameters.max_percent;
         }
-        if(menu_parameters.straight_percent<menu_parameters.base_percent)
-            menu_parameters.straight_percent=menu_parameters.base_percent;
-        if(menu_parameters.straight_percent>menu_parameters.max_percent)
-            menu_parameters.straight_percent=menu_parameters.max_percent;
     }
+    /* CSV v1 retains Straight for compatibility; fixed-Base mode has no boost setting. */
+    menu_parameters.straight_percent=menu_parameters.base_percent;
 }
 void Menu_Process(const ButtonEvents *events, LineEstimator *line, uint8_t stale,
                   uint8_t oled_ok, uint32_t now)
@@ -109,10 +120,10 @@ void Menu_Process(const ButtonEvents *events, LineEstimator *line, uint8_t stale
         break;
     case MENU_PID:
         if (events->short_press & 1U) {
-            if (isEditingPID) ChangeParameter(1); else pidIndex = (pidIndex + 1U) % 6U;
+            if (isEditingPID) ChangeParameter(1); else pidIndex = (pidIndex + 1U) % 5U;
         }
         if (events->short_press & 4U) {
-            if (isEditingPID) ChangeParameter(-1); else pidIndex = pidIndex ? pidIndex - 1U : 5U;
+            if (isEditingPID) ChangeParameter(-1); else pidIndex = pidIndex ? pidIndex - 1U : 4U;
         }
         if (events->short_press & 2U) isEditingPID ^= 1U;
         break;
@@ -151,7 +162,21 @@ void Menu_Process(const ButtonEvents *events, LineEstimator *line, uint8_t stale
         break;
     case MENU_SYSTEM:
         if (events->short_press & 1U) ResetParameters();
+        if (events->short_press & 2U) { Robot_Stop(FAULT_NONE); StopTest(); currentMenu=MENU_LOG; log_index=log_notice=0; }
         if (events->short_press & 4U) { currentMenu = MENU_CORNER; isEditingCorner = 0; }
+        break;
+    case MENU_LOG:
+        if(events->short_press&1U) { log_index=(log_index+1U)%4U; log_notice=0; }
+        if(events->short_press&4U) { log_index=log_index?log_index-1U:3U; log_notice=0; }
+        if(events->short_press&2U) {
+            BlackboxStatus log;
+            Blackbox_GetStatus(&log);
+            if(log_index==0) log_notice=Robot_LogArm(log.trigger==LOG_TRIGGER_CORNER)?1:4;
+            else if(log_index==1) log_notice=Robot_LogArm(log.trigger!=LOG_TRIGGER_CORNER)?1:4;
+            else if(log_index==2) log_notice=LogProgress("SAVING...") && Robot_LogSave()?2:4;
+            else if(log.state==LOG_READY && !log.ram_saved) log_notice=5;
+            else log_notice=LogProgress("EXPORTING CSV...") && Robot_LogExport()?3:4;
+        }
         break;
     case MENU_CORNER:
         if(isEditingCorner && (events->short_press&(1U|4U))) {
@@ -194,8 +219,8 @@ static void DrawPID(void)
     char text[24];
     OLED_DrawString(30, 0, "PID SETUP", 1);
     OLED_DrawString(104, 0, "RAM", 1);
-    /* Six 7-pixel rows fit above the footer without scrolling. */
-    for (i = 0; i < 6U; ++i) {
+    /* Five PID/Base/Max rows fit above the footer without scrolling. */
+    for (i = 0; i < 5U; ++i) {
         uint8_t item = i, y = 10U + i * 7U;
         if (item == pidIndex) OLED_DrawString(2, y, isEditingPID ? "*" : ">", 1);
         switch (item) {
@@ -203,7 +228,6 @@ static void DrawPID(void)
         case 1: snprintf(text, sizeof(text), "Ki  : %.2f", menu_parameters.ki); break;
         case 2: snprintf(text, sizeof(text), "Kd  : %.2f", menu_parameters.kd); break;
         case 3: snprintf(text, sizeof(text), "Base: %u%%", menu_parameters.base_percent); break;
-        case 4: snprintf(text, sizeof(text), "Straight: %u%%", menu_parameters.straight_percent); break;
         default: snprintf(text, sizeof(text), "Max : %u%%", menu_parameters.max_percent); break;
         }
         OLED_DrawString(15, y, text, 1);
@@ -382,11 +406,27 @@ void Menu_Draw(const LineEstimator *line, const LineFrame *frame, uint8_t stale)
     case MENU_SYSTEM:
         OLED_DrawString(0, 0, "SYSTEM CONFIG " BOARD_FIRMWARE_TAG, 1);
         OLED_DrawRect(0, 0, 128, 10, 1);
-        OLED_DrawString(0, 14, "MCU: STM32F103C8T6", 1);
-        OLED_DrawString(0, 26, "PWM: TIM4 - 20kHz", 1);
+        OLED_DrawString(0, 14, "N2: BLACK BOX", 1);
+        OLED_DrawString(0, 26, "TX:PB12 9600 8N1", 1);
         OLED_DrawString(0, 38, "ADC:DMA N3:Corner", 1);
         OLED_DrawString(0, 50, "N1: Reset PID Default", 1);
         break;
+    case MENU_LOG: {
+        BlackboxStatus log;
+        static const char *states[]={"ARMED","REC","POST","READY"};
+        static const char *notices[]={"N2:OK Hold N2:Back","ARMED NEXT RUN","SAVED - POWER OFF OK","EXPORT DONE","NO DATA / BLOCKED","SAVE RAM FIRST"};
+        Blackbox_GetStatus(&log);
+        OLED_DrawString(0,0,"BLACK BOX " BOARD_FIRMWARE_TAG,1);
+        snprintf(text,sizeof(text),"%s %u F:%s",states[log.state],log.count,log.saved?"YES":"NO");
+        OLED_DrawString(0,10,text,1);
+        OLED_DrawString(12,20,"Arm next run",1);
+        OLED_DrawString(12,29,log.trigger==LOG_TRIGGER_CORNER?"Trigger:CORNER":"Trigger:LOSS",1);
+        OLED_DrawString(12,38,log.ram_saved?"Save: already saved":"Save RAM to Flash",1);
+        OLED_DrawString(12,47,"Export Flash CSV",1);
+        OLED_DrawString(0,20+log_index*9U,">",1);
+        OLED_DrawString(0,57,notices[log_notice],1);
+        break;
+    }
     case MENU_CORNER:
         OLED_DrawString(12,0,"RECOVERY " BOARD_FIRMWARE_TAG,1);
         OLED_DrawString(0,14,"Advance: DISABLED",1);

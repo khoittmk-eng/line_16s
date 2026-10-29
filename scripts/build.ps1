@@ -17,6 +17,8 @@ if ($process.ExitCode -gt 1 -or $logText -notmatch '0 Error\(s\)' -or !(Test-Pat
 }
 
 $configText = Get-Content -LiteralPath (Join-Path $repoPath 'config/board.h') -Raw
+python (Join-Path $repoPath 'scripts/check-firmware-layout.py') (Join-Path $buildPath 'linefollower.hex')
+if ($LASTEXITCODE -ne 0) { throw 'Firmware overlaps reserved black-box Flash or has an invalid HEX layout.' }
 $firmwareTag = [regex]::Match($configText, '#define BOARD_FIRMWARE_TAG "([A-Za-z0-9_-]+)"').Groups[1].Value
 if ($firmwareTag) {
     $versionedHex = Join-Path $buildPath ("linefollower-{0}.hex" -f $firmwareTag)

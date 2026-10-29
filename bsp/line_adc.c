@@ -3,6 +3,7 @@
 static volatile uint16_t dma_samples[BOARD_ADC_COUNT * 2U];
 static volatile LineFrame published;
 static LineFrameCallback frame_callback;
+static uint8_t log_resume;
 void LineADC_SetCallback(LineFrameCallback callback) { frame_callback = callback; }
 static void NotifyFrame(void)
 {
@@ -109,7 +110,7 @@ void DMA1_Channel1_IRQHandler(void)
     published.timestamp_ms = Time_Millis();
     ++published.sequence;
     NotifyFrame();
-}
+	}
 void LineADC_GetFrame(LineFrame *frame)
 {
     uint32_t mask = Time_SaveIRQ();
@@ -120,4 +121,42 @@ void LineADC_GetFrame(LineFrame *frame)
     frame->dma_errors = published.dma_errors;
     frame->missed_frames = published.missed_frames;
     Time_RestoreIRQ(mask);
+}
+void LineADC_PauseForLog(void)
+{
+    uint32_t irq=Time_SaveIRQ(), flags;
+    log_resume=(TIM3->CR1&TIM_CR1_CEN) && !published.dma_errors && !published.missed_frames;
+    TIM_Cmd(TIM3,DISABLE);
+    ADC_ExternalTrigConvCmd(ADC1,DISABLE);
+    ADC_Cmd(ADC1,DISABLE);
+    DMA_Cmd(DMA1_Channel1,DISABLE);
+    flags=DMA1->ISR;
+    /* Maintenance must not silently clear an already pending capture failure. */
+    if(flags&DMA1_FLAG_TE1) { ++published.dma_errors; log_resume=0; }
+    if((flags&(DMA1_FLAG_HT1|DMA1_FLAG_TC1))==(DMA1_FLAG_HT1|DMA1_FLAG_TC1)) {
+        ++published.missed_frames; log_resume=0;
+    }
+    DMA_ClearITPendingBit(DMA1_IT_GL1);
+    NVIC_ClearPendingIRQ(DMA1_Channel1_IRQn);
+    if(published.dma_errors || published.missed_frames) NotifyFrame();
+    Time_RestoreIRQ(irq);
+}
+void LineADC_ResumeAfterLog(void)
+{
+    uint32_t start,irq=Time_SaveIRQ();
+    if(!log_resume) { Time_RestoreIRQ(irq); return; }
+    log_resume=0;
+    DMA_SetCurrDataCounter(DMA1_Channel1,BOARD_ADC_COUNT*2U);
+    DMA_ClearITPendingBit(DMA1_IT_GL1);
+    NVIC_ClearPendingIRQ(DMA1_Channel1_IRQn);
+    ADC_ClearFlag(ADC1,ADC_FLAG_EOC|ADC_FLAG_STRT);
+    ADC_Cmd(ADC1,ENABLE);
+    start=Time_Cycles();
+    while((uint32_t)(Time_Cycles()-start)<SystemCoreClock/100000U) {}
+    TIM_SetCounter(TIM3,0);
+    TIM_ClearFlag(TIM3,TIM_FLAG_Update);
+    DMA_Cmd(DMA1_Channel1,ENABLE);
+    ADC_ExternalTrigConvCmd(ADC1,ENABLE);
+    TIM_Cmd(TIM3,ENABLE);
+    Time_RestoreIRQ(irq);
 }

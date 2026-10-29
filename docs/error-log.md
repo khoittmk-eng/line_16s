@@ -376,3 +376,153 @@ Owner báo B15 cải thiện khoảng0,5s và yêu cầu profile50/80. B16 đổ
 - Validation:34.861 assertions pass, Keil0 error/warning. Hai phía, dt1..4, pulse/cancel/rearm/no-double-brake/deadline, soft steering release/edge bypass, cap rejoin, raw-mask supervisor, diagnostics/watchdog/menu. Driver motor/ADC/estimator unchanged so với backup B19.
 - Harness mở rộng300M instructions/60s toàn suite; hoàn tất test_done. Không chứng minh execution time thực.
 - Status: implemented/emulation-tested, chưa hardware-verified. Backup và chi tiết tại speed-b20.md.
+
+## ERR-035 — Xung dừng trước cua làm gián đoạn forward tracking
+
+- Ngày/revision: 28/10/2026, B20 → B21. Owner yêu cầu giảm thời gian phanh/chạy lại, giữ chuỗi góc vuông ổn định.
+- Evidence source: confirmed broad shape sau fast center chủ động phát ENTRY_BRAKE 8 ms ngay cả khi line valid. Chưa có trace để kết luận đây là mọi lần chậm trên xe.
+- Fix: bỏ entry pulse/state, giữ forward PID và corner cap32; soft deceleration120 chỉ trong moderate track với target≥Base. Edge/outward/corner giữ600; recovery brake12ms và deadlines không đổi. Không dùng quỹ đạo parabol tính từ geometry chưa đo.
+- Validation:37.251 assertions pass, Keil0 error/warning. Thử hai phía/dt1–4, corner đổi hướng rồi loss, soft ramp/edge bypass, raw estimator/supervisor và watchdog. Xem [speed-b21.md](speed-b21.md).
+- Status: source-tested, chưa hardware-verified. Rủi ro: bỏ entry pulse có thể tăng overshoot nếu duty vào góc quá cao; giữ profile để kiểm chứng trước khi tăng tốc. Backup B20 đã lưu.
+
+## B22 — Thiếu trace để đối chiếu cảm giác phanh với mode thực
+
+Owner báo B21 ổn định hơn một chút nhưng vẫn cảm thấy phanh gắt cuối thẳng; đồng ý hộp đen/CH340 và cần giữ log sau khi tháo nguồn. Các counter TIME/STEER chỉ tổng hợp, không cho thứ tự sensor → mode → PWM. B22 thêm cửa sổ160 sample, chọn LOSS/CORNER, Save Flash hai slot, Export CSV có CRC32 và parser. Không kết luận nguyên nhân phanh thật trước khi nhận log. Gain/speed/controller B21 giữ nguyên.
+
+Validation:84.890 assertions +8 Python tests pass; Keil0 error/warning. Hash và memory tại [validation.md](validation.md); thao tác tại [blackbox-b22.md](blackbox-b22.md). Chưa thử Flash/CH340 trên xe.
+
+## ERR-036 — Flash/Software UART có thể phá acquisition nếu không có maintenance boundary
+
+- Evidence: Flash single-bank stalls instruction fetch; ADC vẫn chạy sẽ tích HT/TC trong thời gian Save. Software UART khóa IRQ khoảng một byte; cần stopped-only và pause capture. Timestamp SysTick có thể bỏ tick nên frame trước maintenance không đủ chứng minh mới.
+- Fix B22: Robot API từ chối RUN, StopBrake trước thao tác; pause TIM3/ADC/DMA, giữ các pending/sticky capture error; resume DMA từ đầu. Yêu cầu frame mới sau thao tác trước Start. Không xóa capture fault để tự khởi động lại.
+- Storage: linker reserve16KiB, giới hạn driver address/length, CRC32 + commit-last, hai slot; torn save không thay bản hợp lệ trước. Export bị chặn khi RAM mới chưa Save để tránh gửi nhầm bản cũ.
+- Validation: test API blocked khi RUN, mới/sau maintenance, fault boundaries, program/erase failure và torn save trước/header/payload/commit. HEX checker không chạm slot. ADC pause/resume thật và nguồn Flash còn cần thử board.
+- Trạng thái: source-reviewed/emulation-tested; chưa hardware-verified. Không gọi Save/UART từ control ISR.
+
+## ERR-037 — Tên helper CRC xung đột macro peripheral trong SPL
+
+- Evidence: build B22 đầu báo17 lỗi ở hàm tên CRC; CMSIS/SPL đã định nghĩa CRC là địa chỉ peripheral.
+- Fix: đổi helper thành LogCRC, không sửa vendor hoặc undef macro phần cứng.
+- Phòng tránh: đặt prefix module cho helper trùng tên peripheral; compile với header thật ngoài test fake.
+- Validation: firmware build cuối0 error/warning; trạng thái source-fixed.
+
+## ERR-038 — Cửa sổ Hercules cắt phần đầu log và hiển thị nhiều dữ liệu gây lag
+
+- Owner gửi nhiều lần chỉ còn tail, có “The oldest data was removed”, thiếu header và không thể kiểm tra CRC/cue cua. Chưa đủ bằng chứng kết luận UART/Flash bị mất dữ liệu.
+- Fix PC-only: receive-blackbox.ps1/receive-blackbox.py nhận thẳng CH340 9600/8N1, không echo sensor rows; đợi header đến END theo arbitrary chunks, lưu file mới, tái dùng parser CRC/schema/sample count và tạo summary JSON. Timeout/disconnect/Ctrl+C/CRC lỗi chỉ giữ partial raw log, không ghi đè lượt trước hoặc báo PASS giả.
+- Launcher cài pySerial3.5 trong build/serial-deps. Không cần sửa/nạp lại firmware B22. Chọn COM thủ công, không tự chọn Intel AMT nếu đó là cổng khác.
+- Validation:18 receiver tests và8 parser/layout tests pass; PowerShell launcher local install/list ports pass. Chưa có end-to-end capture CH340 thật trong phiên. Hướng dẫn: [receive-log.md](receive-log.md).
+- Dev pitfall đã sửa: Windows PowerShell truyền dấu double quote trong Python -c làm sai dependency probe; dùng Python single-quoted literals, missing dependency thoát1 không phát traceback vào native stderr dưới ErrorActionPreference Stop.
+
+## Phản hồi B22 — Log hardware CORNER sequence2 đã qua CRC
+
+- File `logs/run-20261028-160554-654293.csv`,160sample,CRC32 B4544906, profile55/60/85 và12/0/0,12. PC receiver đã lấy được bản đầy đủ owner gửi; không suy ra mọi chức năng persistence/timing đã được đo.
+- Trigger334941ms là invalid0x98 → PROBE, sau đómaskFF/nhiều nhóm; không có valid confirmed-corner pending/side trongwindow. CORNER trigger bao gồm invalid, không chứng minh góc90° đã được nhận dạng.
+- Duty request33,5% trước sự kiện giảm còn15,5% trong28ms vì PROBE target15; valid trở lại thì tăng từ15,7 theo ramp80. Không BRAKE/TURN/zero-wheel tronglog. Đây là bằng chứng cụ thể cho nhánh gây khựng, không phải kết luận lực phanh cơ học.
+- Cửa sổ bắt sự kiện chỉ423ms sauStart, chưa đạtStraight60; chưa đánh giá được phanh cuối đoạn thẳng nhanh hoặc toàn bộmap. Không đổiPID/firmware trong lượt phân tích.
+- Chi tiết: [log-analysis-20261028-seq2.md](log-analysis-20261028-seq2.md). Hướng tiếp: xử lý ambiguous pattern/rejoin có bounds và hướng quan sát, bảo vệ square/gap; không tự suy hướng trênFF.
+
+## ERR-039 — Invalid tách nhóm ngắn kéo PROBE xuống15 dù vừa bám tâm ổn định
+
+- Evidence hardware B22 seq2, CRC32 B4544906: mask18→98/D9/FB/FF/...→18,30ms PROBE; common request33,5→15,5%, rejoin15,7%, cuốiwindow38,4%. Không BRAKE/TURN. Không dùng log startup này để kết luận overshoot ởStraight60%.
+- Source: invalid không có hướng được chọn đi thẳng vào ForwardHold(min(Base,15)), decel600 và correction*=0,85. Fixture raw160frame/calibration thật tái hiện regression fail70051 trước sửa; không kết luận hình học thực của vùng đen.
+- Fix B23: first-loss latch khi guide mới≤10ms và center≥40ms, error≤0,8/rate≤4, không corner/recovery/guard; invalid vẫn hai mắt giữa, entry không SplitDirection. Tiếp tụcPROBE≤32ms, capmin(Base,32,duty hiện tại), giữ tỷ lệ trustedL/R, không accelerate/invalid centroid. White/anchor loss/expiry hủy; confirmed cue/pending ưu tiên. Lost/ambiguous/deadlines không reset. Flicker phải earn center40ms để cấp lại.
+- Validation:86.667 assertions,8 parser/layout và18 receiver tests pass; Keil0 error/warning. Replay xấp xỉ command min32,0/rejoin32,1/end54,8%; đây không phải hardware B23 hoặc đo thời gian vòng. Window missing2ms raw được held-last, không tự tạo measurement.
+- Telemetry: PROBE +flagsbit4, CSV/Flash format không đổi; tool PC dùng được. Không đổi gains/profile/estimator/driver/ADC/brake. Backup B22 và chi tiết: [speed-b23.md](speed-b23.md).
+- Status: source-fixed/emulation-tested, B23 cần thử xe cảmap/square/dash.32ms có thể tiến thêm trong vùng ambiguous; không guarantee đúng route ởFF.
+
+## ERR-040 — Brake-before-turn và ramp từng bánh có thể trì hoãn tạo yaw
+
+- Owner báo B23 vọt ở cuối thẳng/góc90° và phanh nhiều, yêu cầu bỏ pulse để rẽ sớm. Log seq3 CRC3ED4E91F chỉ bắt startup391ms, không có BRAKE/TURN; không dùng nó chứng minh phanh ở các góc về sau.
+- Source: BeginRecovery giữ12msBRAKE ở duty cao. Nếu bỏ pulse mà giữ Pivot cũ, từ equal commands lớn hơn pivot duty hai bánh cùng giảm trước khi thêm differential. Regression yêu cầu directTURN fail80023 trênB23.
+- FixB24: BeginRecovery luônTURN, không pulse; ramp common→0 ở600 và steering→±36 ở1800, clampMax. Valid confirmedshape có steering floor0,8limit cùng hướng khi không cải thiện, nhả ngay khi cần; bỏ cap32 riêng do shape, vẫn CruiseTarget risk. Driver zero chỉ reversingchannel để outerwheel tiếp tục; simultaneous reversal vẫn guard cả hai.
+- Validation:92.268assertions+26Python tests pass; Keil0 error/warning. First-frame yaw/Max/dt/hai phía/floor release, valid authority, chain memory/deadline, driver guard vàwatchdogs. Xem [speed-b24.md](speed-b24.md).
+- Status: source-tested, chưa hardware-verified. Không khẳng định thân xe đổi hướng tức thì hoặc vòngnhanh hơn; bỏ pulse có rủi ro tiến thêm khi thiếu lực quay. Stop/fault/maintenance vẫnStopBrake.
+
+## ERR-041 — CORNER recorder đóng băng bởi ambiguity không có hướng lúc startup
+
+- Evidence B23 sequence3,160sample,CRC32 3ED4E91F: PROBE30ms giữ31,1% đúngB23, flags16; trigger chỉ391ms sauStart, errormax0,372pitch, không pending/TURN/BRAKE.
+- FixB24: CORNER không trigger vì invalidPROBE đơn thuần; chỉ directional valid/pending/TURN hoặc fault. LOSS giữ nguyên; manualStop vẫn đóng băng tail nếu chưa trigger.
+- Validation: fake startup99/FF nhiều sample khôngPOST, cue có hướng sau đó vàfault vẫnPOST; record/CSV/Flash version giữ nguyên. Phân tích [log-analysis-20261028-seq3.md](log-analysis-20261028-seq3.md).
+- Status: source-fixed/tested; cần log góc thực tế. CORNER cue không bảo đảm chính là góc90° và vẫn chỉ ghi một cửa sổ ngắn.
+
+## ERR-042 — B24 văng ở góc liên tiếp; sai số giữa yếu ghi đè hướng recovery
+
+- Symptom: owner báo B24 chạy kém hơn, mất line ở chuỗi góc vuông và văng sau thẳng nhanh; yêu cầu fixed Base. Đây là phản hồi hardware, chưa có traceB24 để chứng minh toàn bộ nguyên nhân.
+- Reproduced source defect: confirmed F8/1F → mẫu giữa trái dấu ±0,5 → trắng6ms. B24 dùng last_error>|0,35| trước pending nên TURN sai phía; ALIGN cũng có nhánh ghi đè tương tự. Test mới chạy trên sourceB24 fail90048.
+- Other source factors: CruiseTarget vẫn boost/giảm target; shape floor nhảy PD18→34 ở Base55/Max85; TURN giữ common tiến ramp600 (từ55 về0 khoảng92ms ở mức command). Đây là cơ chế có thể góp phần văng, không phải đo quán tính thực.
+- FixB25: bỏ boost/shape floor/curve target scheduling cho TRACK; targetBase55, Max85, gain12/0/0,12. Quay trực tiếp khi loss đã có pending; giữ hướng pending/post-turn trước lỗi giữa yếu, nhận hướng mới mạnh>=1,2 hoặc split confirmed. Không ramp tiến trongTURN. Nếu split mới ngược pending, giữ6ms confirmation để không khóa nhầm hướng cũ.
+- Prevention: mirrored tests cho pending/ALIGN/post-turn với mẫu giữa trái dấu, hướng mới mạnh, cue split ngược trướcTURN, Max/dt; giữ bộ test square-chain/deadline/GAP/watchdog. Menu bỏStraight; telemetry schema giữ nguyên.
+- Validation:97520 ARM assertions+8 parser/layout+18 receiver tests pass; Keil0errors/0warnings. SHA/artifact/chi tiết tại [B25](fixed-base-b25.md). BackupB24 giữ source vàHEX trước sửa.
+- Status: source-fixed/tested, **chưa hardware-verified**. Giữ giới hạn riêng khiRECENTER/invalid; không hứa mọi đoạn chạy cùng tốc độ hay không cònLINE LOST. Không sửa các file trong backupB13 đang mở trênIDE.
+
+
+## ERR-043 — ST-Link Keil C mất kết nối sau lần nạp đầu do WFI Sleep không bật DBGMCU clock
+
+- Symptom: Owner nạp firmware vào STM32, lần sau bấm Download trong Keil C thì báo `Error: Flash Download failed - Target DLL has been cancelled` và `internal command error`; luôn phải dùng STM32 ST-Link Utility (Connect Under Reset) hoặc giữ nút Reset mới kết nối lại được.
+- Evidence: Popup uVision `Error: Flash Download failed - Target DLL has been cancelled` được ghi nhận. Trong `app/main.c`, `__WFI()` chạy liên tục ở cuối vòng lặp foreground và đoạn delay khởi động OLED; thời gian CPU nằm ở sleep mode chiếm >90%. `bsp/board.c` chưa cấu hình các bit debug clock trong `DBGMCU->CR`.
+- Root cause: Lệnh `__WFI()` đưa Cortex-M3 vào chế độ Sleep. Mặc định trên STM32F103, clock của khối CoreDebug / SWD bị ngắt trong trạng thái Sleep nếu chưa bật `DBGMCU_CR_DBG_SLEEP`. Khi Keil C bắt đầu nạp qua ST-Link mà không dùng hardware reset, probe không handshake được với Core và DLL bị hủy lệnh (Target DLL cancelled).
+- Fix:
+  1. Trong `bsp/board.c`: Bật clock debug lúc sleep: `DBGMCU->CR |= DBGMCU_CR_DBG_SLEEP | DBGMCU_CR_DBG_STOP | DBGMCU_CR_DBG_STANDBY;`.
+  2. Trong `app/main.c`: Loại bỏ lệnh `__WFI()` ở foreground delay và vòng lặp chính. Robot line follower dùng nguồn pin và cấp qua IC nguồn, mức tiêu thụ 15-20 mA của core khi thức liên tục là không đáng kể so với motor, đồng thời giúp CPU phản hồi UI/nút bấm mượt mà và cổng SWD luôn sẵn sàng tiếp nhận nạp/debug từ Keil C bất cứ lúc nào.
+- Validation: Build Keil C 0 errors, 0 warnings; layout HEX hợp lệ; toàn bộ 97.520 ARM assertions và 26 Python tests pass.
+- Status: source-fixed, chưa hardware-verified trên xe.
+
+## ERR-044 — Cua mềm bị trễ correction; bắt lại line làm tụt PWM xuống30%
+
+- Symptom: owner báo Base45 ổn định hơn55 và bản gần nhất cua chậm/văng, yêu cầu ưu tiên cua phối hợp hai bánh.
+- Evidence source: B25 slew toàn correction800%/s chỉ cho1,6% trong frame2ms dù riêng P đang yêu cầu6%. Test mới với sourceB25 fail100031. Nhánh vàoRECENTER đặt speed=min(Base,30) dù Pivot đang yêu cầu36%; post-turn tiếp tục cap35.
+- FixB26: default45/85, gain12/0/0,12; bỏ slew toànPD, giữ D filter15ms. RECENTER cap40 và giữ command magnitude hiện có thay vì reset30; post-turn cap40. Valid line vẫn forwardPD; confirmed loss mớiPivot. Không sửa validity/Flash/motor driver dựa trên phỏng đoán.
+- Validation:101895ARM assertions+26Python tests pass; Keil0Error/0Warning. Có mirrored curve-flow, first-frame P/rejoin, opposite corner, low-duty guard, cùng các test memory/GAP/deadline/watchdog cũ. Bộ profile55/85 vẫn được test riêng.
+- Status: source-fixed/tested, chưa hardware-verified; bỏ slew có thể làm nhiễu D thể hiện rõ hơn, cần quan sát/log; cap40 thoát cua cần thử chuỗi góc vuông. Xem [B26](corner-flow-b26.md).
+
+## ERR-045 — Keil download lỗi sau RUN dù chưa Save; cần kiểm tra SWD/reset
+
+- Owner xác nhận ngày29/10: chưa bấm Save RAM to Flash, chưa có dâyNRST. RUN/Stop không gọi erase/program; source không ghi option bytes hoặc bật readout protection. Chưa có căn cứ quy lỗi cho Flash logger.
+- Điều chỉnh kết luận ERR-043: bỏWFI/bậtDBGMCU là thay đổi source đã có, nhưng chưa có phép thử vật lý xác nhận nguyên nhân Sleep hoặc lỗi đã hết. Các ước lượng thời gian Sleep/dòng core và bảo đảm SWD luôn truy cập được ở ERR-043 không phải measurement trong phiên.
+- HardeningB26: ghi SWJ_CFG=010 cùng OLED I2C remap, không truyền giá trị readback write-only qua AFIO_MAPR. Không khẳng định remapSPL cũ là root cause trên chip thật.
+- PC checks: project chọnST-Link và dùng chung debug driver; DLL và STM32F10x_128.FLM tồn tại; chưa có entry Settings riêngST-Link trong uvoptx. Thêm read-only `scripts/diagnose-keil.ps1` và [hướng dẫn nạp](keil-download.md).
+- Validation: boardMMIO tests xác nhận SWD-enabled write/remap/initialGPIO; build/layout pass. Không có physical SWD connect/download test, không erase chip.
+- Status: hardware diagnosis còn mở. Cần GND chung; Normal/SWD/100–200kHz khi chưaNRST, hoặc nốiNRST rồiConnect under Reset. Thử nạp trướcRUN, sauRUN/Stop chưaSave, rồi sauSave để phân biệt nguyên nhân.
+
+## ERR-046 — Mất line chuyển counter-rotation ngay, bỏ mức PWM tiến đang có
+
+- Owner báo B26 cải thiện nhưng cảm giác dừng rồi cua, yêu cầu rẽ ngay bằng mức trước đó và chấp nhận rủi ro văng thân xe. Không có trace mới để xác nhận toàn bộ cảm giác dừng cơ học.
+- Source: Turn/Pivot B26 lập tức yêu cầu±36 khi loss có hướng, trung bình tiến về0. Regression yêu cầu forward arc đầu tiên fail120032 trên sourceB26.
+- FixB27: entry tiến mean>=35 dùng forward arc0,8correction, giữ mean entry khi đủMax, chỉ28ms đầu của recovery. Valid có quyền ngay, arc rejoin dùngBase. Post-turn retry không cấp lại28ms, vẫn deadline1200ms và fallbackpivot36.
+- Validation:102331ARM+26Python tests; first-frame/expiry/rejoin mọi frame/Max/dt/timeout/square memory/watchdog pass. Hardware chưa thử; arc có thể mở rộng đường cua/cắt nhánh, không khẳng định nhanh hơn.
+- Chi tiết: [B27](rolling-corner-b27.md). BackupB26, giữBase45/Max85/gain12/0/0,12.
+
+## ERR-047 — Retarget pivot chèn cả hai PWM zero trong cùng update
+
+- Reproduced source/driver test: từ một pivot sang pivot đối diện, hai guard đảo chiều cùng đưa lệnh vềzero. B26 fail50056 với test yêu cầu không both-wheel zero; đây là lệnh điện, chưa chứng minh bánh thực sự đứng.
+- FixB27: stagger zero mỗi channel qua hai update, giữ bánh tiến cũ tạm thời cap theo request tiến mới; sau đó nhận đủ request mới. Stop/fault và straight reverse giữ guard/brake như trước.
+- Validation: test driver thật với fakeMMIO xác nhận thứ tự PWM, cap thấp hơn và explicitStop; suite pass. Chưa đo dòng/quán tính trên driver thật.
+
+## ERR-048 — D kick mắt giữa bị giữ suốt đoạn trắng
+
+- Owner báo nét đứt hơi lắc; source B26 guide chụp thẳng L/R có D transient. Đây là cơ chế có thể góp phần lắc, chưa được chứng minh là nguyên nhân duy nhất bằng hardware trace.
+- FixB27: lọc riêng gap_correction nominal25ms, giữ common từ guide; GAP giữ cặp đã lọc có bounds. TRACK PID/ambiguity guide không đổi. Clip theoMax/common, deadband nửa permille, không gia hạn GAP300ms.
+- Validation: mirrored isolated central-eye kick cho GAP differential<20% transient ban đầu, cặp giữ ổn định200ms, valid rejoin và watchdog pass; test cũ cập nhật yêu cầu snapshot đã lọc/rounding1permille. Cần thử nét đứt thật.
+
+## ERR-049 — B27 tăng lực cua chủ yếu sau loss; visible corner còn dùng P nền
+
+- Owner báo17,30giây ởBase45, nét đứt ổn nhưng thời gian cua chưa cải thiện rõ. Không có trace/lap lặp lại để xác nhận một nguyên nhân vật lý duy nhất.
+- Source: valid shape mới chỉ ghi pending/direction, P vẫn cố định; arc chỉ chạy sau confirmed loss. Test chính sách mới fail130035 trên B27 vì không có extra steering ở cue valid6ms.
+- B28: extraP có giới hạn, tăng từ từ theo abs(error) và confirmed directional shape, giữ dấu trái/phải; không tăngKd hoặc dùng floorB24. Ordinary soft curve/RECENTER không dùng assist. Clipping/antiwindup vẫn tính theoP effective.
+- Đã so sánh code ARM ba candidate với cùng input pureP: B27 extra0, gain tức thì extra5,4 tại cue6ms, gain mượt extra1,44 rồi đạt5,4. Chọn gain mượt vì bước đầu nhỏ hơn; không coi command trace là mô phỏng quỹ đạo/thành tích.
+- Validation:104022ARM+26Python tests pass; Keil0errors/warnings. Risk: cue không chứng minh90°, extraP có thể làm cắt góc/quay sớm. Chưahardware-verified. Xem [B28](visible-corner-b28.md).
+
+## ERR-050 — Pivot36 cố định trong vùng trắng làm giới hạn tốc độ tìm line
+
+- Đây là hạn chế cấu hình source được chọn để thử cải thiện, chưa có log chứng minh pivot là phần chiếm nhiều nhất17,30giây.
+- B28 dùng50% khi mask0, giảm36 khi có tín hiệu nhưng invalid, nhận PD ngay khi valid; clipMax và giữ deadline1200ms. Không thêm pulse đảo chiều cực mạnh cố định.
+- Validation: test50→36→PD hai phía, Max/dt/deadline và suite memory/arc/driver/watchdog pass. Hardware cần thử vì có thể quét lố. Base45/Max85/gain nền12/0/0,12 giữ làm mốc.
+
+## ERR-051 — Planner rate còn hướng ra ngoài khi frame mới đã cho thấy line về tâm
+
+- Owner báo B28 đạt16,3giây ởBase45, Base55/60 từng chậm hơn45; yêu cầu tối ưu tiếp ở45. Chưa có log B28 mới để kết luận thời gian mất ở nhánh nào.
+- Source: B28 chỉ dựa thêm e*planner_rate để nhả extra P; rate đã lọc có thể còn hướng ra ngoài sau nhiều frame abs(error) giảm. Baseline regression fail140035; candidate trace giữ extra0,264 sau6ms trở về.
+- B29: confirm error giảm rõ liên tiếp6ms trong cùng visible cue, nhả extra P sớm có fade0,05/ms; giữ releasing qua plateau, cần6ms đi ra ngoài rõ để cho phép hỗ trợ lại. Noise/cue/mode/Stop/invalid được test; không sửa corner memory hay deadlines.
+- Rise rate tăng0,04→0,05/ms, trầnextra0,6 vàBase45/Max85/PID nền không đổi. So ba candidate ARM cho thấy chỉ tăngrise không giảm phần hỗ trợ còn giữ khi thoát; B29 kết hợp choextra0,176 tại cùng input, cùngsteady correction23,4. Không phải đo quỹ đạo/lap time.
+- Validation:104149ARM+26Python tests, comparison vàKeil0Error/0Warning pass. Chưahardware-verified; có thể nhả quá sớm khi tín hiệu giảmerror là nhiễu hoặc nhánh khác. Xem [B29](corner-return-b29.md). BackupB28.

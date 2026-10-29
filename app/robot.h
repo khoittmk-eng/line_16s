@@ -52,4 +52,8 @@ uint8_t Robot_EndCalibration(void);
 void Robot_CancelCalibration(void);
 void Robot_TogglePolarity(void);
 void Robot_ToggleSteering(void);
+/* Return 0 if an operation is blocked or has no applicable data. */
+uint8_t Robot_LogArm(uint8_t corner_trigger);
+uint8_t Robot_LogSave(void);
+uint8_t Robot_LogExport(void);
 #endif

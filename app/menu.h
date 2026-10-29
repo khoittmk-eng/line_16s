@@ -4,7 +4,7 @@
 #include "line_adc.h"
 #include "line_estimator.h"
 #include "control.h"
-typedef enum { MENU_MAIN, MENU_RUN, MENU_SENSOR, MENU_PID, MENU_CALIB, MENU_MOTOR, MENU_SYSTEM, MENU_CORNER } MenuState;
+typedef enum { MENU_MAIN, MENU_RUN, MENU_SENSOR, MENU_PID, MENU_CALIB, MENU_MOTOR, MENU_SYSTEM, MENU_CORNER, MENU_LOG } MenuState;
 typedef ControlParameters MenuParameters;
 extern MenuState currentMenu;
 extern MenuParameters menu_parameters;

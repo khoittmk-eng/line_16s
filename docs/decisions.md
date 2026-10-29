@@ -216,3 +216,62 @@ B19 thêm Straight RAM-only trên OLED; defaults55/60/85, clamp Base<=Straight<=
 ## ADR-030 — B20: entry brake có điều kiện và giới hạn tăng correction
 
 Owner cho phép phanh chủ động khi vào góc. B20 thêm ENTRY_BRAKE8ms trước loss với confirmed shape6ms, fast center memory150ms và mean duty>=50. Đây là ngoại lệ có kiểm soát cho policy cũ không full brake khi valid. Valid thường hủy ngay; invalid dùng phần pulse còn lại và giữ recovery deadline; latch chỉ mở sau trusted center. Soft steering giới hạn build-up800 trong vùng moderate, giải phóng correction ngay, không ép bánh trong luôn tiến. Post-turn cap35 tới60ms center (TTL200ms), không xác định được danh tính line. Giữ55/60/85/gain12/0/0,12 để đối chiếu. Diagnostics phân biệt ZERO/ENTRY; xem speed-b20.md.
+
+## ADR-031 — Forward PID liên tục thay ENTRY_BRAKE khi line valid (B21)
+
+Owner yêu cầu giảm chuỗi phanh/chạy lại. B21 thay ADR-030 ở phần entry pulse: bỏ phanh hai bánh chỉ vì valid corner cue; giữ PID và giảm common duty có ramp. Moderate track dùng deceleration120 khi target≥Base, edge/corner giữ600. Không tạo quỹ đạo parabol giả định. Recovery brake, corner memory, post-turn bounds và watchdog giữ nguyên. Enum/diagnostic ENTRY chỉ giữ tương thích, không phát ở B21. Chi tiết và tradeoff: [speed-b21.md](speed-b21.md); chưa hardware-verified.
+
+## ADR-032 — Hộp đen B22, Flash hai slot và TX-only PB12
+
+Owner đồng ý CH340 và cần giữ log sau khi tháo nguồn. Chọn ring RAM 160×48 byte, cadence4ms với mode/trigger bypass; capture80 sample trước/80 từ trigger. Chọn LOSS hoặc CORNER trên OLED; freeze đến ARM tiếp theo. Lưu Flash thủ công khi dừng vào hai slot8KiB ở 0x0800C000/0x0800E000, CRC32 và commit cuối; firmware bị giới hạn48KiB bởi scatter và HEX checker. Không ghi Flash trong RUN.
+
+Giữ sáu main items; System N2 vào BLACK BOX, N1/N3 chọn, N2 ARM/Trigger/Save/Export. PB12 Software UART TX9600/8N1, stopped-only; không đổi dây đang chạy xe. Pause ADC khi Flash/Export và yêu cầu frame mới trước Start, giữ sticky capture fault. CSV có transport CRC32, profile/calibration và parser trên PC. RAM mới chưa Save chặn Export bản Flash cũ. Giới hạn: một cửa sổ ngắn, PWM request không là đo tốc độ, UI chờ lúc Export, logging có overhead cần đo. Chi tiết: [blackbox-b22.md](blackbox-b22.md).
+
+## ADR-033 — PROBE có giới hạn theo trusted guide cho ambiguity ngắn (B23)
+
+Owner yêu cầu sửa theo raw trace CRC B4544906. B23 thay policy mọi unknown nonzero mask đều lập tức target15 trong một trường hợp hẹp: center history40ms, guide≤10ms, error≤0,8/rate≤4, hai mắt giữa vẫn đen, không corner/recovery/guard hoặc entry SplitDirection. Giữ trusted wheel ratio trong≤32ms, cap32 và không tăng duty, vẫn decel600 nếu đang nhanh. Sau giới hạn hoặc mất anchor dùng policy cũ; confirmed direction/pending có ưu tiên, invalid centroid không được dùng, counters không reset. Valid line tiếp tục PID ngay. Gains/defaults55/60/85, brake/GAP/memory/watchdogs không đổi. Rủi ro: có thể tiến thêm vào intersection/đen rộng; một trace startup không chứng minh whole-map stability. Xem [speed-b23.md](speed-b23.md).
+
+## ADR-034 — Direct turn B24 theo yêu cầu owner
+
+Owner yêu cầu bỏ phanh rồi mới rẽ. B24 supersedes policy giữ recoveryBRAKE ở các ADR/AGENTS cũ: không phát BRAKE/ENTRY trong controlRUN, giữ explicitStop/faultwatchdogBrake. Pivot tách common decel600 và steering slew1800 để thêm yaw ởframeđầu, target±min(Max,36). Valid confirmedasymmetricshape thêm steering floor0,8 khi cùng hướng/e không cải thiện, bỏ cap32 riêng do shape; PD/risk planner giữ authority khi cue clear/improving. Reversal guard theo từng wheel để outerwheel không bị ngắt khi chỉ inner đảo dấu. Giữ bounds/deadlines/squarememory/whiteGAP và không chọn hướng từFF. CORNER recorder đổi trigger để bỏstartupinvalidkhônghướng. Chi tiết/rủiro/validation tại [speed-b24.md](speed-b24.md), chưahardware-verified.
+
+## ADR-035 — Fixed Base và hướng recovery theo bằng chứng quan sát (B25)
+
+- Context: owner báo B24 văng line ở thẳng/góc liên tiếp, yêu cầu bỏ boost rồi giảm tốc. Không có log B24 mới để kết luận động lực học.
+- Decision: TRACK target=Base, bỏ Straight bonus/curve-risk target scheduling/shape floor; giữ PD mỗi2ms và startup ramp. Pending loss không chờ thêm6ms nếu không có cue split ngược; TURN request counter-rotation ngay, không ramp tiến. Giữ hướng đã xác nhận trước sai số giữa yếu; hướng mới mạnh/split confirmed vẫn ưu tiên. Xem [B25](fixed-base-b25.md).
+- Exceptions: ALIGN30/post-turn35, bounded ambiguity, GAP300ms, recovery1200ms, Stop/fault/watchdog giữ nguyên. Fixed Base không đảm bảo common PWM hoặc tốc độ cơ học cố định khi mixer đạt giới hạn.
+- UI:5 dòng Kp/Ki/Kd/Base/Max; legacy straight_percent đồng bộ Base, không dùng boost; CSV/Flash schema không đổi.
+- Evidence: baselineB24 fail90048; B25 97520 C assertions +26 Python tests, Keil0errors/0warnings. Cần chạy xe để đánh giá ổn định/thời gian vòng; không khôi phục ADVANCE/minimum-spin B04.
+
+## ADR-036 — Base45, forward PD phản ứng ngay và SWD cấu hình rõ ràng (B26)
+
+- Context: owner báo45 ổn định hơn55, cần giảm thời gian cua; lỗi Keil xảy ra dù chưa Save và thiếuNRST.
+- Decision: giữ fixed Base, default45/85; bỏ slew toànPD vì trễ P, giữ D filter15ms. Rejoin giữ command magnitude có giới hạn40 thay vì reset30, post-turn cap40. Không sửa estimator/driver/Flash logger khi chưa có trace chứng minh lỗi ở đó.
+- Hardware interface: dùng helper board ghi SWD-enabled field cùng I2C remap, bỏ SWJ_CFG readback write-only. Giữ các thay đổi DBGMCU/main đã có của owner. Hướng dẫn Normal khi thiếuNRST và UnderReset khi đã nốiNRST; không viết option bytes.
+- Consequences: valid line vẫn chia PWM hai bánh ngay, quay ngược chỉ ở confirmed loss. Giảm độ trễ có thể tăng nhạy với noise; rejoin nhanh hơn phải thử square-chain. Không có cam kết Base45 luôn giữ được40 trong mọi góc do mixer/Max.
+- Validation:101895ARM+26Python tests, Keil0errors/warnings; baselineB25 fail100031. Chưa chạy xe/nạp board. Chi tiết [B26](corner-flow-b26.md), [Keil](keil-download.md), ERR-044/045.
+
+## ADR-037 — Bounded forward arc, stagger pivot reversal và lọc riêng guide nét đứt (B27)
+
+- Owner chấp nhận rủi ro văng thân xe để rẽ ngay bằng duty đang có; báoBase45/B26 cải thiện.
+- Decision: forward arc28ms đầu recovery khi entrymean>=35, correction0,8common, clipMax; valid rejoin ngay ởBase, fallbackpivot khi chưa thấy line. Không renew khi post-turn reloss. Không geometryADVANCE/minspin; vẫn deadline1200ms.
+- Driver: stagger hai reversal guard khi đổi hướng pivot để giữ ít nhất một PWM tiến; giữ zero mỗi channel và Stop ngay. GAP dùng correction lọc riêng nominal25ms, giữ guide gốc cho ambiguity và livePID.
+- Tradeoff: arc có thể trượt/cắt nhánh; cap40 không áp cho arc rejoin thành công. Post-turn retry vẫnpivot để không tiến mù ở chuỗi góc vuông. PWM không đo vận tốc.
+- Evidence: baselines fail120032/50056;102331ARM+26Python tests. Hardware/lap time chưa xác nhận; xem [B27](rolling-corner-b27.md), ERR-046/047/048.
+
+## ADR-038 — Visible-corner extra P tăng dần và search hai mức (B28)
+
+- Context: owner báo B27 Base45 đạt17,30giây, yêu cầu kết hợp nhận góc sớm/gain scheduling/quay tìm nhanh và thử nhiều hướng.
+- Chọn extraP mượt khi có confirmed valid directional shape, tăng theo abs(error), giới hạn0,6; không đổiKd, không floor ép correction và không geometryADVANCE. Khi cải thiện theo planner/cue không còn thì nhả; PID nền của cua mềm giữ nguyên.
+- So sánh ba candidate ARM command-only cho thấy gain mượt có bước extra1,44 thay5,4 của gain đổi tức thì ở input pureP đã chọn. Không có plant model hay dự báo lap time.
+- Search50 trên trắng,36 khi có đen chưa valid, forwardPD ngay khi valid. Giữ45/85, B27 arc/dash/driver, rejoin40 và deadlines/interlocks.
+- Consequences: metadataKp là gain nền, cần đọc firmwareB28 để hiểuP effective. Có nguy cơ nhận nhầm cue và quét lố; không khẳng định90deg hoặc nhanh hơn trước khi thử xe.
+- Validation:104022ARM+26Python, candidate comparison, Keil0Error/0Warning. Chi tiết [B28](visible-corner-b28.md), ERR-049/050. BackupB27.
+
+## ADR-039 — Fresh inward trend nhả extraP trước rate lọc (B29)
+
+- Context: B28 được owner báo16,3giây ở45, cao hơn55/60 không có lợi trênmap. Giữ45/85 làm mốc.
+- Decision: tănggain-rise0,04→0,05/ms, giữtrần0,6; xác nhận6ms errorgiảm rõ đểlatch fadeextra sớm. Plateau khôngrebuildgain, cần6msoutward đểrearm; PID nền/memory/deadlines không bị reset bởi trend.
+- Evidence: B28 fail140035. So sánhB28/rise-only/B29 cùng synthetic trace: entry19,44/19,8/19,8; steady23,4 cảba; extra sau6msreturn0,264/0,264/0,176. ChọnB29 theo hành vi lệnh, không dự báo thành tích.
+- Tradeoff: rise nhanh/return fade có thể làm phản ứng với cue giả hoặc nhả thiếu lực, cần thửxe. Gain metadata vẫn làgain nền, Flash/CSV khôngđổi. Không tăngBase/Max hoặcđổi driver/SWD trong lượt này.
+- Validation:104149ARM+26Python+candidatecomparison, Keil0errors/warnings. Chi tiết [B29](corner-return-b29.md), ERR-051; backupB28.
